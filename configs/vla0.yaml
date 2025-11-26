@@ -1,34 +1,52 @@
 EXP:
+  # 实验名字
   EXP_ID: "vla0"
   MODEL: "qwen" 
+  # 不用学习率 scheduler，训练全程固定 lr
   LR_SCHED: "none"
+  # 开混合精度（fp16/bf16），减显存、加速。
   AMP: True
   OPTIMIZER: "adamw"
 
 TRAIN:
+  # 初始学习率 5×10⁻⁶，对 3B 模型来说偏小、典型“只微调一点头层”的设定。
   lr: 5e-6
   num_epochs: 24
+  # 0 表示不做梯度裁剪；>0 就是 max grad norm。
   clip_grad_norm: 0.0
+  # L2 正则（weight decay）非常小，几乎可以看成没有 regularization。
   l2: 1e-10
 
 EXP_EXTRA:
+  # 每隔 2 个 epoch 保存一次 checkpoint
   save_ckp: 2
 
 DATALOADER:
+  # 每个 GPU / 进程的 batch 大小。
   batch_size: 8
+  # PyTorch DataLoader 的 worker 数。
   num_workers: 8
   ROBOVERSE:
+    # 指向 RoboVerse 的一个数据配置文件，基础设置都在 img_libero_aug.yaml 里：用哪个 LeRobot repo；horizon；默认图像大小、增广方式等
     cfg_path: libs/RoboVerse/roboverse/configs/img_libero_aug.yaml
+    # 在 cfg_path 的基础上做覆盖（override），用冒号拼起来
     cfg_opts: IMAGE.crop_img:0.875:IMAGE.img_size:224:IMAGE.cam_list:('3p1','3p2')
 
 MODEL:
   QWEN:
+    # 给视觉 token 加一个“vision ID”标识（类似 segment embedding），帮助模型区分图像 token 和纯文本 token。
     add_vision_id: True
+    # 不用 LoRA / QLoRA，直接常规 full / partial fine-tune（具体冻结策略看代码）。如果你想低显存微调，后面可以尝试把其中一个打开。
     use_lora: False 
     use_qlora: False
+    # 不使用 flash-attn-2（可能是为了兼容性，或者你没装对应版本）；装好了可以设 True 换成高效注意力
     use_flash_attention_2: False
+    # 输入图像的 size（H,W），要和 DATALOADER 的 IMAGE.img_size 保持一致。
     rgb_img_size: 224,224
     original_action_dim: 7
+    # 动作掩码数据增强比例：训练时大约 40% 的动作 token 会被 mask，用来做“补全动作”的训练，让模型在动作不完整的上下文下也能预测合理动作（这是 VLA-0 的一个关键 recipe）。
     action_mask_aug_per: 0.4
+    # 使用两路相机，与上面 IMAGE.cam_list:('3p1','3p2') 对应。
     num_cam: 2
+    # 把多路相机图像先 拼成一个 tile 大图 再送进模型
     tiled_rgb_imgs: True

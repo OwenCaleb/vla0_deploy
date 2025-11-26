@@ -51,6 +51,7 @@ def main():
         action="store_true",
         help="Do not skip evaluated tasks",
     )
+    # Automatic Mixed Precision（自动混合精度），用于加速模型推理/训练并减少显存占用
     parser.add_argument("--amp", action="store_true", help="Use AMP for evaluation")
     parser.add_argument(
         "--generate_temperature",
