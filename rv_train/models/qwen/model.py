@@ -24,6 +24,8 @@ from rv_train.utils.train_utils import ForkedPdb as debug  # noqa: F401
 class NumberSpaceOnlyProcessor(LogitsProcessor):
     """
     Logits processor that constrains generation to only numbers (0-9), spaces, and end-of-text tokens.
+    强制 Qwen 输出 “空格分隔的整数序列”，方便后面解码为动作
+    典型的「把 LLM 输出当成 structured action 的技巧」
     """
 
     def __init__(self, tokenizer):
@@ -33,6 +35,7 @@ class NumberSpaceOnlyProcessor(LogitsProcessor):
 
         # Add numbers 0-9
         for i in range(10):
+            # 开头、结尾等特殊符号不要；返回的是列表，取第一个
             token_id = tokenizer.encode(str(i), add_special_tokens=False)[0]
             self.allowed_tokens.add(token_id)
         # Add space token
@@ -40,11 +43,14 @@ class NumberSpaceOnlyProcessor(LogitsProcessor):
         self.allowed_tokens.add(space_token_id)
 
         # Add end of text token
+        # 没有 EOS token，模型会一直生成直到达到最大长度
         if tokenizer.eos_token_id is not None:
             self.allowed_tokens.add(tokenizer.eos_token_id)
 
     def __call__(self, input_ids, scores):
         # Set logits to negative infinity for all tokens except allowed ones
+        # input_ids: 当前已生成的token序列 [batch_size, sequence_length]
+        # scores: 模型对下一个token的预测分数 [batch_size, vocab_size]
         mask = torch.full_like(scores, float("-inf"))
         for token_id in self.allowed_tokens:
             mask[:, token_id] = 0
@@ -59,6 +65,11 @@ def format_data(system_message, image, instr, action_txt):
     :param instr: str, the instruction
     :param action_txt: str, the action text
     :return: list of dicts, the format required by the model
+    system: 系统角色设定
+    user: 用户输入，包含：
+        图像（一张或多张）
+        文本指令
+    assistant: 助手回复（通常是动作指令）
     """
     return [
         {
@@ -228,52 +239,142 @@ class QwenActor(nn.Module):
 
     @staticmethod
     def load_qwen_model(
-        qwen_model_id,
+        qwen_model_id,  # 模型ID或路径，如 "Qwen/Qwen2.5-VL-7B-Instruct"
         use_lora,
         use_qlora,
         lora_config,
         lora_rank,
         use_flash_attention_2,
-        attention_dropout,
+        attention_dropout,  # # 注意力dropout率
     ):
         if lora_config == "":
             lora_config = None
         elif lora_config == "default":
             if use_lora:
+                """
+                原始前向传播: h = Wx
+                LoRA前向传播: h = Wx + BAx
+
+                Rank
+                # 控制适配器的表达能力
+                r=8   # 较小秩，参数少，可能欠拟合
+                r=16  # 中等秩，平衡效果和效率
+                r=64  # 较大秩，参数多，可能过拟合
+
+                lora_alpha
+                # 控制LoRA输出的缩放程度
+                实际输出 = (BAx) * (alpha / r)
+                类似于学习率，控制适配器对原始输出的影响程度;通常设置为 r 的 1-2 倍;alpha/r 比值越大，LoRA影响越强
+
+                target
+                # 指定哪些层应用LoRA
+                target_modules=["q_proj", "v_proj"]  # 只对query和value投影应用
+                # 或者
+                target_modules=["q_proj", "k_proj", "v_proj", "o_proj"]  # 所有注意力投影
+                # 或者
+                target_modules="all-linear"  # 所有线性层
+
+                type
+                掩码和损失计算不同
+                task_type="CAUSAL_LM"        # 因果语言建模 (文本生成)
+                task_type="SEQ_2_SEQ_LM"     # 序列到序列任务
+                task_type="TOKEN_CLS"        # 令牌分类
+                task_type="QUESTION_ANS"     # 问答任务
+
+
+                """
                 from peft import LoraConfig, get_peft_model
 
                 lora_config = LoraConfig(
-                    lora_alpha=16,
-                    lora_dropout=0.05,
-                    r=lora_rank,
-                    bias="none",
-                    target_modules=["q_proj", "v_proj"],
-                    task_type="CAUSAL_LM",
+                    lora_alpha=16,  # LoRA缩放因子
+                    lora_dropout=0.05,  # LoRA层的dropout
+                    r=lora_rank,  # LoRA秩，控制参数量
+                    bias="none",  # 不训练任何偏置 (最常用);最节省参数，效果通常足够好
+                    target_modules=["q_proj", "v_proj"],  # 目标模块
+                    task_type="CAUSAL_LM",  # 因果语言建模任务
                 )
         else:
             raise ValueError(f"Invalid lora_config: {lora_config}")
 
-        # Qwen Init
+        # Qwen Init BitsAndBytes Config（比特与字节配置）
         bnb_config = None
         if use_lora and use_qlora:
+            # QLoRA = 量化（Quantization） + LoRA
             from transformers import BitsAndBytesConfig
 
+            """
+                # NF4 (Normal Float 4)
+                # - 专门为正态分布数据优化
+                # - 在重要区域（接近0）有更高精度
+                # - 适合神经网络权重
+                # FP4 (Float Point 4)
+                # - 均匀精度分布
+                # - 适合通用数据
+                # 实际效果：NF4在相同bit数下精度损失更小
+
+                # 第一次量化：原始权重 → 4bit值 + 缩放因子
+                original_weights = [0.123, 0.456, 0.789, 0.234, ...]
+                quantized_values = [1, 3, 5, 2, ...]        # 4bit值
+                scale_factors = [0.1, 0.2, ...]             # 缩放因子
+                # 第二次量化：对缩放因子本身再次量化
+                # scale_factors → 进一步压缩
+                # 效果：额外节省约0.4-0.5bit/参数
+                缩放因子 = (35 - (-25)) / 15 = 60 / 15 = 4
+                量化过程：
+                北京：-10°C → (-10 - (-25)) / 4 = 15/4 ≈ 4（刻度值）
+                广州：25°C  → (25 - (-25)) / 4 = 50/4 ≈ 13（刻度值）
+                哈尔滨：-25°C → (-25 - (-25)) / 4 = 0（刻度值）
+                三亚：35°C  → (35 - (-25)) / 4 = 60/4 = 15（刻度值）
+                存储：
+                刻度值：[4, 13, 0, 15]（4bit）
+                缩放因子：4（保存这个就能还原）
+                最小值：-25（保存这个确定起点）
+
+                # bfloat16优势：
+                # - 保持与float32相同的指数范围（8bit指数）
+                # - 减少尾数精度（7bit尾数）
+                # - 训练稳定性更好，减少梯度消失/爆炸
+            """
             bnb_config = BitsAndBytesConfig(
-                load_in_4bit=True,
-                bnb_4bit_use_double_quant=True,
-                bnb_4bit_quant_type="nf4",
-                bnb_4bit_compute_type=torch.bfloat16,
+                load_in_4bit=True,  # 核心：4bit量化 将模型权重从16bit/32bit压缩到4bit 内存减少: 75.0%（16bit）
+                bnb_4bit_use_double_quant=True,  # 双量化，进一步压缩
+                bnb_4bit_quant_type="nf4",  # 量化数据类型
+                bnb_4bit_compute_dtype=torch.bfloat16,  # 计算精度 存储与计算是不同的
             )
 
         extra_kwargs = {}
         if use_flash_attention_2:
+            """
+            # 传统注意力 vs Flash Attention 2
+            传统注意力: O(N²) 复杂度，速度慢
+            Flash Attention 2: 优化到接近 O(N)，速度快2-4倍
+            # 内存占用对比（序列长度=4096）
+            传统注意力: ~16GB
+            Flash Attention 2: ~4GB  # 减少75%内存
+
+            核心：分块计算将大矩阵分成小块处理
+            """
             extra_kwargs["attn_implementation"] = "flash_attention_2"
 
         if attention_dropout > 0.0:
+            """
+            # 预训练时通常用很小的dropout
+            attention_dropout = 0.0  # 或 0.1
+            # 原因：预训练数据量大，过拟合风险小
+            # 微调时数据量小，需要更强正则化
+            attention_dropout = 0.1  # 或 0.2
+            # 原因：防止在小数据集上过拟合
+            """
             config = AutoConfig.from_pretrained(qwen_model_id)
             config.attention_dropout = attention_dropout
             extra_kwargs["config"] = config
 
+        """
+        # 这三种写法效果相同 对于大多数情况 不指定 device_map，让库自动处理 需要精确控制时再写
+        device_map={"": "cuda:0"}
+        device_map="cuda:0"  # 简化写法
+        device_map=0         # 更简化的写法
+        """
         model = Qwen2_5_VLForConditionalGeneration.from_pretrained(
             qwen_model_id,
             # device_map={"": "cuda:0"},  # Use the explicit map
@@ -289,11 +390,26 @@ class QwenActor(nn.Module):
 
     @staticmethod
     def load_qwen_model_processor(
-        qwen_model_id,
-        min_pixel,
-        max_pixel,
-        padding_side,
+        qwen_model_id,  # 模型ID，如 "Qwen/Qwen2.5-VL-7B-Instruct"
+        min_pixel,  # 图像最小像素值（预处理用） 原始像素值 → 缩放到 [min_pixel, max_pixel] 范围
+        max_pixel,  # 图像最大像素值（预处理用） 原始像素值 → 缩放到 [min_pixel, max_pixel] 范围
+        padding_side,  # 文本填充方向
     ):
+        """
+        Tokenizer（分词器）
+            仅处理文本：文本 → tokens
+            功能单一：只负责文本分词
+        Processor（处理器）:内部复杂组成
+            多模态处理：文本 + 图像 → 统一格式
+            功能全面：协调分词器和图像处理器
+
+        填充PAD
+        文本生成	"right"	保持上下文完整性，便于自回归生成
+        文本分类	"left"	序列结尾对齐，便于分类特征提取
+        问答系统	"right"	问题信息在前，模型基于此生成答案
+        翻译任务	编码器"right"
+        解码器"left"	分别优化编码和解码过程
+        """
         if padding_side is not None:
             processor = Qwen2_5_VLProcessor.from_pretrained(
                 qwen_model_id,
@@ -826,13 +942,22 @@ class QwenActor(nn.Module):
         self.processor.save_pretrained(path)
 
     def from_pretrained(self, path, is_trainable=True):
+        # 常见的技巧 自动获取模型所在的设备
+        # self.parameters() 返回一个生成器（generator），包含模型的所有可学习参数
+        # next(self.parameters()) 获取第一个参数张量 可能是第一个卷积层的权重或第一个全连接层的权重
         _device = next(self.parameters()).device
-        # This way works
+
+        # 防止在加载新模型时出现内存不足的问题
         del self.model
+        # 清空GPU缓存，避免内存碎片
         torch.cuda.empty_cache()
+        # 强制垃圾回收，彻底释放内存
         gc.collect()
 
+        # LoRA模型加载路径
         if self.use_lora:
+            # PEFT (Parameter-Efficient Fine-Tuning) 库
+            # 参数高效微调的 Hugging Face 库，主要目的是用极少的参数量来微调大语言模型
             from peft import PeftModel
 
             base_model = self.load_qwen_model(
