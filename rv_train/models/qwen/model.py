@@ -782,15 +782,13 @@ class QwenActor(nn.Module):
             )
             for i in range(bs)
         ]
-
         if drop_assistant:
             # drop the assistant portion so the model must generate it
             examples = [e[:2] for e in examples]
-
+        # 只管：“把一堆 {role, content} 变成一条 prompt 字符串”
+        # 管的是「对话格式」，不管图片像素
+        # 最多会插一些 <image> / <vision_start> 这种占位符（标记“这里有图”）
         texts = [
-            # 只管：“把一堆 {role, content} 变成一条 prompt 字符串”
-            # 管的是「对话格式」，不管图片像素
-            # 最多会插一些 <image> / <vision_start> 这种占位符（标记“这里有图”）
             self.processor.apply_chat_template(
                 example,
                 tokenize=False,  # 其实这 encode 表述更合适吧；因为 tokenizer 的 tokenize 和 encode 的逻辑；VL 模型（带图像）的处理链必须 tokenize=False → 再让 processor(text+image) encode
@@ -1017,8 +1015,18 @@ class QwenActor(nn.Module):
                     == "left"  # （理论支持，实际上用 assert 禁了）
                 ), "current implementation only supports right padding"
 
-                # for debugging, compare
+                """
+                “把 token id 序列翻译回人话”，
+                方便你检查：
+                – 输入序列长啥样
+                – mask / padding / sysuser_len 有没有弄错。
+                -100 不是合法的 token id，processor.decode() 根本 decode 不出来，甚至直接报错或者给你奇怪东西。
+                这两行 TIP 是为了 debug 输入，而不是 debug labels，所以用的是 model_inputs。
+                """
+                # for debugging, compare ； decode-》把一串 token id → 还原成可读文本字符串。
+                # 使用注意力掩码过滤后的解码
                 # self.processor.decode(model_inputs["input_ids"][i][model_inputs["attention_mask"][i] == 1])
+                # 与原始序列的解码对比
                 # with self.processor.decode(model_inputs["input_ids"][i])
                 _action_txt = action_txt[i]
                 # 10% of sample has no augmentation
@@ -1045,15 +1053,54 @@ class QwenActor(nn.Module):
 
             # copied from modeling_qwen2_5_vl.py to compute the loss
             # Upcast to float if we need to compute the loss to avoid potential precision issues
+            """
+            有些模型在前向里用的是 half precision（比如 float16 / bfloat16），
+            为了算 loss 更稳定，这里统一转成 float32：
+            避免数值不稳定（特别是 softmax + log 的时候容易溢出/下溢）
+            完全不改形状，只是改 dtype
+            """
             logits = logits.float()
             # Shift so that tokens < n predict n
+            """
+            # 假设序列长度=6
+            输入序列: [S, I, U, START, A1, A2]
+            Labels:   [-100, -100, -100, -100, 100, 200]
+
+            # Shift操作：
+            shift_logits = 预测[S,I,U,START,A1]  # 位置0-4的预测
+            shift_labels =        [-100, -100, -100, 100, 200]  # 位置1-5的真实值
+
+            # 计算损失时：
+            预测[I] vs 真实[-100] → 忽略
+            预测[U] vs 真实[-100] → 忽略
+            预测[START] vs 真实[-100] → 忽略
+            预测[A1] vs 真实[100] → 计算损失 ✓
+            预测[A2] vs 真实[200] → 计算损失 ✓
+            """
             shift_logits = logits[..., :-1, :].contiguous()
             shift_labels = labels[..., 1:].contiguous()
             # Flatten the tokens
+            """
+            # shift_logits 形状: (batch_size, seq_len-1, vocab_size)
+            # 例如: (2, 5, 51200) - 2个样本，每个样本5个位置，词汇表大小51200
+            # shift_labels 形状: (batch_size, seq_len-1)
+            # 例如: (2, 5) - 2个样本，每个样本5个标签
+            # shift_logits 形状: (batch_size * (seq_len-1), vocab_size)
+            # 例如: (10, 51200) - 总共10个位置，每个位置对应51200个词汇的预测分布
+
+            # shift_labels 形状: (batch_size * (seq_len-1),)
+            # 例如: (10,) - 总共10个位置的正确标签
+            """
             shift_logits = shift_logits.view(-1, shift_logits.size(-1))
             shift_labels = shift_labels.view(-1)
             # Enable model parallelism
             shift_labels = shift_labels.to(shift_logits.device)
+            """
+            # CrossEntropyLoss 期望的输入格式：
+            # input: (N, C) - N个样本，每个样本C个类别的预测分布
+            # target: (N,) - N个样本的正确类别索引
+            """
+            # self.loss_fn = nn.CrossEntropyLoss(ignore_index=-100) 已写过
             loss = self.loss_fn(shift_logits, shift_labels)
 
             return {"loss": loss}
