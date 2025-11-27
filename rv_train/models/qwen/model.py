@@ -129,12 +129,29 @@ class QwenActor(nn.Module):
         :param num_bins_actions: int, the number of bins in which each action dimension is discretized
         :param use_flash_attention_2: bool, whether to use flash attention 2 for faster training and inference
         :param attention_dropout: float, the dropout rate for the attention layer in the qwen model. Only tested when use_lora is False.
+        :param qwen_model_id: str, 要使用的Qwen模型ID
+        :param action_type: str, 要使用的动作类型，可以是ORIGINAL或EE
+        :param original_action_dim: int, 原始动作的维度
+        :param horizon: int, 动作的时间步长（预测范围）
+        :param history: int, 动作的历史长度
+        :param use_qlora: bool, 是否使用QLoRA进行参数高效微调
+        :param num_cam: int, RGB输入的摄像头数量
+        :param lora_config: str, 要使用的LoRA配置，可以是空字符串或"default"
+        :param lora_rank: int, 要使用的LoRA秩，仅在lora_config为"default"时使用
+        :param rgb_input: bool, 是否使用RGB图像输入
+        :param rgb_img_size: tuple, RGB图像输入的尺寸（高度，宽度）
+        :param add_vision_id: bool, 是否为Qwen2.5输入添加视觉ID
+        :param tiled_rgb_imgs: bool, 是否将RGB图像拼接成单个图像而不是分别输入
+        :param num_bins_actions: int, 每个动作维度离散化的分箱数量
+        :param use_flash_attention_2: bool, 是否使用Flash Attention 2以加速训练和推理
+        :param attention_dropout: float, Qwen模型中注意力层的dropout率。仅在use_lora为False时经过测试。
         """
         super(QwenActor, self).__init__()
 
         # current assumptions
         if use_qlora:
             assert use_lora, "use_lora must be True if use_qlora is True"
+        # LoRA 与 attention dropout 没有根本冲突；保守；作者没有测试
         if attention_dropout > 0.0:
             assert (
                 not use_lora
@@ -149,6 +166,17 @@ class QwenActor(nn.Module):
 
         # for Qwen model, we need to load the parameters before DDP
         # in case we want to load the model from a checkpoint
+        """
+        # 正确的方式：在DDP之前加载检查点
+        model = QwenActor(...)                    # 初始化随机权重
+        model.load_state_dict(checkpoint)        # 所有进程加载相同检查点
+        model = DDP(model)                       # DDP同步检查点权重
+
+        # 结果：所有GPU上的模型参数一致！
+        # GPU0: 检查点权重
+        # GPU1: 检查点权重
+        # GPU2: 检查点权重
+        """
         self.load_param_before_ddp = True
 
         self.qwen_model_id = qwen_model_id
@@ -179,27 +207,70 @@ class QwenActor(nn.Module):
             use_flash_attention_2=self.use_flash_attention_2,
             attention_dropout=self.attention_dropout,
         )
-
-        # Enable gradient checkpointing if requested
+        """
+        # 梯度检查点是一种时间换空间的技术
+        # 问题：大模型训练时GPU内存不足
+        # 解决方案：不保存所有中间激活，而是在反向传播时重新计算
+        """
+        # Enable gradient checkpointing if requested 并没有实现
+        """
+        input_ids =    [1, 2, 3, 4, 5, 6]      # 模型输入
+        labels =       [2, 3, 4, 5, 6, -100]   # 训练目标，最后一个位置忽略
+        # 将不需要计算损失的位置设为-100：
+        """
         self.loss_fn = nn.CrossEntropyLoss(ignore_index=-100)
 
+        # self.rgb_img_size = (84, 84)
+        # self.min_pixel = self.max_pixel = 84 * 84  # = 7056像素
         self.min_pixel = self.max_pixel = self.rgb_img_size[0] * self.rgb_img_size[1]
         if self.rgb_input and self.tiled_rgb_imgs:
             self.min_pixel *= self.history * self.num_cam
             self.max_pixel *= self.history * self.num_cam
 
+        """
+        对 自回归 LM（Qwen 这种） 来说：
+        训练时多数人用 right padding（方便 mask）。
+        批量生成 + KV cache / flash attention 时，通常会推荐用 left padding，因为最后一个真实 token 都在序列末尾，batch 里对齐得更整齐，计算更高效。
+        """
         self.processor = self.load_qwen_model_processor(
             qwen_model_id=qwen_model_id,
             min_pixel=self.min_pixel,
             max_pixel=self.max_pixel,
             padding_side="left" if use_flash_attention_2 else None,
         )
+        # 默认范式 = 一套 tokenizer + 一套 vocab，同时约束输入的编码方式和输出的可选 token 空间。
+        # 它不会去改原来的 processor，不会去修改 tokenizer 的 vocab 或配置。
         self.logits_processor = NumberSpaceOnlyProcessor(self.processor.tokenizer)
 
+        """
+        DP3 = 一种通用的数据格式（包括 obs/action 的结构 + stats.json）。
+        而每个数据集自己的 state = 这个格式里面 obs 的具体内容（因数据集而异）。
+        “DP3 数据集的 stats” 指的是格式中的统计量，不是特定任务/环境的 state。
+
+        没有从 DP3 格式的 meta/stats.json 读取 mean/std，
+        而是写死在代码里的固定 normalization 参数。
+        """
+        # 现在只是暂时用写死的 DP3 数据集归一化参数，下次请改成从 stats 文件里读，别一直用这块硬编码。
         print(
             "WARNING: Using hardcoded dataset stats for DP3. This should be replaced with loading from a file."
         )
 
+        """
+        因为实际数据集特别杂：
+        有的动作是 7 维（EE）
+        有的是 8 维（额外加 gripper one-hot）
+        有的是 12 或 13 维（姿态用 6D 特征）
+        有些是 joint-space（关节角增量）
+        有些是二阶段动作（open/close + xyz）
+        如果模型统一使用数据集动作维度 → 动作头必须支持每一种维度，麻烦且难泛化。
+
+        所以作者提供两条路径：
+        ✔ ORIGINAL → 用数据集动作（原样）
+        ✔ EE → 强制统一成一个 7 维 VLA 动作头（更适合多任务 / 多数据集）
+        论文中的“原始动作(original)”通常就是 EE 动作。
+        代码中的 ORIGINAL 指的是“用数据集本来的动作格式”，
+        而 EE 是作者自己定义的统一 7D EE 规范，与数据集原始格式不一定一致。
+        """
         if action_type == C.ORIGINAL:
             self.act_dim = original_action_dim
         elif action_type == C.EE:
@@ -207,17 +278,30 @@ class QwenActor(nn.Module):
         else:
             assert False
 
+        """
+        "分析输入图像并预测接下来 {self.horizon} 个时间步的机器人动作。
+        每个动作有 {self.act_dim} 个维度。
+        输出一个包含 {self.horizon * self.act_dim} 个整数（每个整数范围 0-{self.num_bins_actions}）的单一序列，
+        按顺序表示 {self.horizon} 个时间步的动作。只提供空格分隔的数字。不要输出其他任何内容。"
+        """
         self.system_message = f"Analyze the input image and predict robot actions for the next {self.horizon} timesteps. Each action has {self.act_dim} dimensions. Output a single sequence of {self.horizon * self.act_dim} integers (0-{self.num_bins_actions} each), representing the {self.horizon} timesteps sequentially. Provide only space separated numbers. Nothing else."
 
         # todo: need better way to determine it
         self.num_tokens = 1024
+        # 这是用来装**“数据集原始的统计量（mean/std 等）”**的，格式跟数据集自带的一模一样。
         self.original_dataset_stats = None  # original dataset stats has the same format as the one provided by the dataset
+        # 把原始数据集的 stats 重新整理成 这个模型能直接用的形式。
         self.dataset_stats = (
             None  # dataset stats is in the format specific to the model
         )
 
+        """
+        self._sysuser_len：用来记录 system+user 前缀的 token 数（缓存用）
+        self.cache_sysuser_len：决定要不要复用这个长度（假设每次 prompt 模板相同），从而方便：
+        给 prefix 部分设 labels=-100
+        截取 “从这里往后的 token 是动作序列”。
+        """
         self._sysuser_len = None
-
         self.cache_sysuser_len = False
 
     def set_dataset_stats(self, dataset_stats):
@@ -226,6 +310,8 @@ class QwenActor(nn.Module):
         :param dataset_stats: dict, the dataset stats
         """
         if dataset_stats == {}:
+            # “Dataset stats 是空的，很可能这台机器上没有用来算 stats 的数据。如果你只是加载一个已经预训练好的模型，可以忽略。”
+            # 反归一化作者也许放到别的地方
             warnings.warn(
                 "Dataset stats is empty likely because the system does not have the data used to compute the stats. Ignore this is you are loading a pretrained model."
             )
@@ -235,6 +321,7 @@ class QwenActor(nn.Module):
         if self.action_type == C.ORIGINAL:
             self.dataset_stats = dataset_stats["out_ori_act"]
         else:
+            # 目前还没实现“EE 模式下该怎么从原始 dataset_stats 里构造一份适配 7 维动作的 stats”。
             raise NotImplementedError(f"Action type {self.action_type} not implemented")
 
     @staticmethod
@@ -431,7 +518,15 @@ class QwenActor(nn.Module):
         Get the min and max action for the instruction.
         :param instruction: str, the instruction for the current episode. This is needed for libero bounds 99% as the action space is different for different instructions.
         :return: torch.Tensor, the min and max action.
+        这个方法根据不同的任务指令（instruction）返回对应的动作空间的最小值和最大值。
+        self.instruction_to_suite = {
+            "put the wine bottle on top of the cabinet": "libero_goal",
+            "put the banana into the drawer": "libero_object",
+            "open the left door of the cabinet": "libero_spatial",
+            # ...
+        }
         """
+        # 确保指令不为空，因为不同的任务有不同的动作空间边界。
         assert instruction is not None, "instruction is needed for libero bounds 99%"
         min_act = []
         max_act = []
@@ -441,16 +536,36 @@ class QwenActor(nn.Module):
             max_act.append(torch.tensor(self.dataset_stats[_suite]["max"]))
         min_act = torch.stack(min_act, dim=0)
         max_act = torch.stack(max_act, dim=0)
+        """
+        # 假设有三个形状为[2, 3]的张量
+        a = torch.tensor([[1, 2, 3], [4, 5, 6]])
+        b = torch.tensor([[7, 8, 9], [10, 11, 12]])
+        c = torch.tensor([[13, 14, 15], [16, 17, 18]])
+
+        tensors_to_stack = [a, b, c]  # 共有 N=3 个张量
+
+        # 沿着不同维度堆叠
+        stacked_dim0 = torch.stack(tensors_to_stack, dim=0)  # 形状: [3, 2, 3]
+        stacked_dim1 = torch.stack(tensors_to_stack, dim=1)  # 形状: [2, 3, 3]
+        stacked_dim2 = torch.stack(tensors_to_stack, dim=2)  # 形状: [2, 3, 3] (此例中dim=2效果同dim=-1)
+
+        print(f"Original single tensor shape: {a.shape}")     # 输出: torch.Size([2, 3])
+        print(f"After stack(dim=0) shape: {stacked_dim0.shape}") # 输出: torch.Size([3, 2, 3])
+        print(f"After stack(dim=1) shape: {stacked_dim1.shape}") # 输出: torch.Size([2, 3, 3])
+        """
         return min_act, max_act
 
     def get_text_action(self, actions, instruction=None):
         """
+        支持批量处理
         Get the text action from the actions.
         :param actions: torch.Tensor, the actions to convert to text.
         :param instruction: str, the instruction for the current episode. This is needed for libero bounds 99% as the action space is different for different instructions.
         :return: List[str], the text action.
         """
-        # TODO: implement this for ee action space
+        # TODO: implement this for ee action space 目前是joint
+
+        # 确保动作边界张量与输入动作在相同的计算设备上（CPU/GPU）。
         if (
             (not hasattr(self, "_min_act"))
             or (not hasattr(self, "_max_act"))
@@ -467,14 +582,20 @@ class QwenActor(nn.Module):
             min_act = self._min_act
             max_act = self._max_act
 
+        # 作用：确保所有动作值都在合理的物理范围内。
         assert torch.all(min_act <= actions) and torch.all(
             actions <= max_act
         ), f"Action is out of range: {actions}"
 
+        # 将动作从 [min_act, max_act] 范围映射到 [0, 1] 范围。
         actions = (actions - min_act) / (max_act - min_act)
+        # 将归一化后的动作映射到离散的桶中。
         actions *= self.num_bins_actions
+        # 四舍五入到最近的整数，得到离散的桶索引。
         actions = torch.round(actions).long()
+        # 将动作张量展平，便于后续处理;保持批次维度不变，将所有其他维度展平。
         actions = actions.reshape(actions.shape[0], -1)
+        # 将离散的动作索引转换为文本字符串；用空格连接
         action_txt = [" ".join(map(str, x.tolist())) for x in actions]
 
         return action_txt
@@ -496,15 +617,19 @@ class QwenActor(nn.Module):
             action_txt[i] is a string that contains horizon * act_dim numbers in space separated format.
             We have built in some flexbility for handling minor mistakes in the action_txt.
             """
-            # remove space from the front and back of the action_txt if they exist
+            # remove space from the front and back of the action_txt if they exist # 移除前后空格
             action_txt = [x.strip() for x in action_txt]
+            # 按空格分割字符串
             action = [[x for x in _action_txt.split(" ")] for _action_txt in action_txt]
             action = torch.tensor(
-                [[int(x) for x in _action_txt] for _action_txt in action],
+                [
+                    [int(x) for x in _action_txt if x != ""] for _action_txt in action
+                ],  # 增加了if x != "" 修复 "" 的情况
                 dtype=torch.float32,
             )
             # This handles tha case when bs == 1 and the action_txt is not divisible by act_dim
             # We remove some elements so that it is divisible by act_dim
+            # 当单个样本的动作数量不是 act_dim 的整数倍时，截断多余部分。
             if bs == 1 and len(action[0]) % self.act_dim != 0:
                 action = action[0][: len(action[0]) - len(action[0]) % self.act_dim][
                     None, :
@@ -512,8 +637,10 @@ class QwenActor(nn.Module):
 
             # reshape to (bs, -1, act_dim)
             # takes care of case when the action_txt has less than horizon * act_dim numbers
+            # 将扁平的动作序列重塑为 [批次大小, 时间步数, 动作维度]。
             action = action.reshape(bs, -1, self.act_dim)
             # if action.shape[1] < self.horizon, pad the action with the last action
+            # 用最后一个时间步的动作填充到目标长度 horizon。
             if action.shape[1] < self.horizon:
                 action = torch.cat(
                     [
@@ -522,12 +649,15 @@ class QwenActor(nn.Module):
                     ],
                     dim=1,
                 )
+            # 时间步超出时截断
             if action.shape[1] > self.horizon:
                 action = action[:, : self.horizon]
+            # 反离散化为连续动作
             action = ((action / self.num_bins_actions) * (max_act - min_act)) + min_act
         except Exception as e:
             print(f"Error in parsing action text: {e}")
             print(action_txt)
+            # 解析失败时返回安全的默认动作（动作范围的中点）
             action = ((min_act + max_act) / 2).repeat(bs, self.horizon, 1)
 
         return action
@@ -604,6 +734,7 @@ class QwenActor(nn.Module):
                 for j in range(self.history):
                     for k in range(self.num_cam):
                         _imgs.append(_rgb[j][k])
+                # _imgs 里是某个batchsize的所有历史，所有视角，然后全部拼一起
                 if self.tiled_rgb_imgs:
                     _imgs = [self.tile_images(_imgs)]
                 _imgs = [
@@ -702,7 +833,7 @@ class QwenActor(nn.Module):
         rgb : optional
             RGB images
         ori_act : optional
-            Original actions
+            Original actions 输入条件（历史）
         ee_pos : optional
             End effector position
         ee_rot : optional
@@ -710,7 +841,7 @@ class QwenActor(nn.Module):
         ee_gri : optional
             End effector gripper state
         out_ee_pos : optional
-            Output end effector position
+            Output end effector position 训练标签（未来）
         out_ee_rot : optional
             Output end effector rotation
         out_ee_gri : optional
@@ -760,10 +891,11 @@ class QwenActor(nn.Module):
             get_one_step_action=get_one_step_action,
             last_action_txt=last_action_txt,
         )
-
+        # 支持 batch 训练/推理
         bs = len(instr)
 
         # imgs is list of list of PIL images
+        # # _imgs 里是某个batchsize的所有历史，所有视角，然后全部拼一起；硬拼；只支持rgb
         imgs = self.get_imgs(
             bs=bs,
             pc=pc,
@@ -772,10 +904,12 @@ class QwenActor(nn.Module):
         )
 
         # TODO: implement this for ee action space
+        # 你这次调用 forward 没传“目标动作序列”进来。典型场景：纯推理；给后面留一个占位的 action_txt，形状是“batch 大小的空列表”
         if out_ori_act is None:
             assert not get_loss
             action_txt = [[]] * bs
         else:
+            # 你把 ground-truth 动作序列（原始动作轨迹）传进来了。典型场景：训练 / 监督模式
             action_txt = self.get_text_action(out_ori_act, instruction=instr)
 
         model_inputs, examples = self.get_qwen_inputs(
@@ -840,9 +974,9 @@ class QwenActor(nn.Module):
                 mask_indices = [
                     x + sysuser_len for x in mask_indices
                 ]  # add sysuser_len to the mask indices to get the correct indices of these tokens
-                labels[
-                    i, mask_indices
-                ] = -100  # these elements will not be used for loss calculation
+                labels[i, mask_indices] = (
+                    -100
+                )  # these elements will not be used for loss calculation
                 model_inputs["input_ids"][
                     i, mask_indices
                 ] = 30  # replace the input ids with '?' token id
@@ -872,9 +1006,9 @@ class QwenActor(nn.Module):
             if generate_temperature > 0:
                 sample_args["temperature"] = generate_temperature
             else:
-                sample_args[
-                    "do_sample"
-                ] = False  # greedy search, this makes the generation deterministic
+                sample_args["do_sample"] = (
+                    False  # greedy search, this makes the generation deterministic
+                )
 
             if get_one_step_action:
                 # we calculate the max number of tokens to generate for one step of action
@@ -938,6 +1072,22 @@ class QwenActor(nn.Module):
             }
 
     def save_pretrained(self, path):
+        """
+        PreTrainedModel.save_pretrained(path) 会在 path 目录下写一堆文件，典型包括：
+            config.json
+                模型结构配置（层数、hidden_size、n_heads、vocab_size、dropout、是否用 flash-attn 等）
+            model.safetensors 或 pytorch_model.bin
+                模型所有参数（权重、偏置），也就是训练出来的 checkpoint 真正的核心
+            可能还有一些：
+                generation_config.json（默认 generate() 的参数）
+                额外的自定义 config 字段（比如加了 LoRA、action head 的信息）
+
+        Processor
+        tokenizer.json
+        tokenizer_config.json
+        special_tokens_map.json
+        preprocessor_config.json / image_processor_config.json 等
+        """
         self.model.save_pretrained(path)
         self.processor.save_pretrained(path)
 
@@ -1011,30 +1161,45 @@ class QwenActor(nn.Module):
         QwenActor.to(self, _device)
 
     def to(self, device):
+        # 设备迁移方法的增强实现
         super().to(device)
-        # if device is interger like 0 or "0", convert to cuda:0
+        # if device is interger like 0 or "0", convert to cuda:0 # 如果device是整数如0或"0"，转换为cuda:0
         if isinstance(device, int) or (isinstance(device, str) and device.isnumeric()):
             device = f"cuda:{device}"
         if hasattr(self, "renderer"):
-            self.renderer.renderer.device = device
-            self.renderer.cameras.to(device)
+            # self.renderer = PyTorch3DRenderer()  # 3D渲染引擎
+            # self.cameras = PerspectiveCameras() # 虚拟相机集合
+            self.renderer.renderer.device = device  # 设置渲染器设备
+            self.renderer.cameras.to(device)  # 迁移相机参数
 
-    def tile_images(self, images):
+    def tile_images(images):
         """
-        Tile a images into a single image
-        :param images: Tensor of shape (bs, H, W, 3) or list of tensors of shape (H, W, 3)
-        :return: Tensor of shape (bs, H, W, 3)
+        Tile images into a single image 把多张图横着拼成一张长图
+        :param images: list[Tensor], 每个 Tensor: (H, W, 3)
+                    或 4D Tensor: (bs, H, W, 3)
+        :return: Tensor of shape (max_H, sum_W, 3)
         """
+        # 如果是 batch tensor，拆成 list
+        if isinstance(images, torch.Tensor) and images.dim() == 4:
+            images = list(images)
+
         for img in images:
             assert len(img.shape) == 3, f"img.shape: {img.shape}"
             assert img.shape[2] == 3, f"img.shape: {img.shape}"
 
-        widths, heights = zip(*(im.shape[:-1] for im in images))
-        total_width = sum(widths)
-        max_height = max(heights)
-        dst = torch.zeros((max_height, total_width, 3), device=images[0].device)
+        # 收集所有图像的 (H_i, W_i)
+        heights, widths = zip(*(im.shape[:-1] for im in images))
+        total_width = sum(widths)  # 横向总宽度 = 各图宽度相加
+        max_height = max(heights)  # 高度 = 所有图中最高的那一张
+
+        # 先开一张足够大的黑底图，把每个子图依次贴上去。
+        device = images[0].device
+        dst = torch.zeros((max_height, total_width, 3), device=device)
+
         current_x = 0
         for i, img in enumerate(images):
-            dst[: img.shape[0], current_x : current_x + img.shape[1], :] = img
-            current_x += img.shape[1]
+            h, w, _ = img.shape
+            dst[:h, current_x : current_x + w, :] = img
+            current_x += w
+
         return dst
