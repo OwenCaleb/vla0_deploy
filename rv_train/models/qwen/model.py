@@ -746,14 +746,17 @@ class QwenActor(nn.Module):
 
     def get_qwen_inputs(
         self,
-        bs: int,
-        imgs: List[List[PIL.Image.Image]],
-        instr: List[str],
-        action_txt: List[str],
-        drop_assistant: bool = False,
-        add_generation_prompt: bool = False,
+        bs: int,  # 批次大小
+        imgs: List[
+            List[PIL.Image.Image]
+        ],  # 图像列表的列表 [[img1, img2], [img3, img4], ...]
+        instr: List[str],  # 指令列表 ["指令1", "指令2", ...]
+        action_txt: List[str],  # 动作文本列表 ["100 200", "150 250", ...]
+        drop_assistant: bool = False,  # 是否丢弃助手回复部分
+        add_generation_prompt: bool = False,  # 是否添加生成提示
     ):
         """
+        这个方法将多模态输入（图像、指令、动作文本）转换为Qwen模型能够处理的标准化格式。
         Get the Qwen inputs for the given inputs
         :param bs: int, the batch size
         :param imgs: list of list of PIL images
@@ -762,7 +765,14 @@ class QwenActor(nn.Module):
         :param drop_assistant: bool, whether to drop the assistant portion.
         :param add_generation_prompt: bool, whether to add the generation prompt assistant\n.
         """
-
+        """
+        # 每个example的格式类似：
+        system: 系统角色设定
+        user: 用户输入，包含：
+            图像（一张或多张）
+            文本指令
+        assistant: 助手回复（通常是动作指令）
+        """
         examples = [
             format_data(
                 system_message=self.system_message,
@@ -772,27 +782,51 @@ class QwenActor(nn.Module):
             )
             for i in range(bs)
         ]
+
         if drop_assistant:
             # drop the assistant portion so the model must generate it
             examples = [e[:2] for e in examples]
 
         texts = [
+            # 只管：“把一堆 {role, content} 变成一条 prompt 字符串”
+            # 管的是「对话格式」，不管图片像素
+            # 最多会插一些 <image> / <vision_start> 这种占位符（标记“这里有图”）
             self.processor.apply_chat_template(
                 example,
-                tokenize=False,
-                add_generation_prompt=add_generation_prompt,
-                add_vision_id=self.add_vision_id,
+                tokenize=False,  # 其实这 encode 表述更合适吧；因为 tokenizer 的 tokenize 和 encode 的逻辑；VL 模型（带图像）的处理链必须 tokenize=False → 再让 processor(text+image) encode
+                add_generation_prompt=add_generation_prompt,  # 控制是否在最后自动加上 assistant 的起始模板。提示要开始生成了
+                add_vision_id=self.add_vision_id,  # Qwen-VL 特有；是否要自动在 user 的文本里插入 vision token 标识
             )
             # when add_generation_prompt is True, it will add the prompt
             # `assistant\n` to the end of the input text
             for example in examples
         ]
         # [0] in process_vision_info is for image input, [1] is for video input
+        # 从一段对话结构里，把所有跟视觉相关的信息（图片 / 视频）抽出来，整理成 Qwen-VL 能吃的 images 输入格式。
+        """
+        process_vision_info
+        👉 只管：“从对话结构里把真正的图片对象拎出来”
+        比如某条 message 的 content 里出现
+        {"type": "image", "image": pil_img}
+        它把这些 PIL / numpy 全部收集成一个 images 列表
+        """
         image_inputs = [process_vision_info(example)[0] for example in examples]
 
+        """
+        你现在 VLA 的场景确实很简单：
+        你已经手里有一个 imgs = [list of PIL.Image]，
+        感觉直接丢进 processor(images=imgs, text=指令) 就行了，对吧？
+        如果你自己写一套 VLM，是可以这么干的。
+        但这里它要兼容的是：
+        任意对话结构（多轮 system/user/assistant）
+        任意位置插入图片（可能在 user 的第 2 句话中间才插一张图）
+        甚至一个 message 里 text、image 交错出现
+        """
         model_inputs = self.processor(
             text=texts, images=image_inputs, return_tensors="pt", padding=True
         )
+
+        # 一键把所有输入搬到模型所在设备上的小套路，没有别的黑魔法。
         for key in model_inputs:
             model_inputs[key] = model_inputs[key].to(
                 next(self.model.parameters()).device
@@ -921,35 +955,56 @@ class QwenActor(nn.Module):
             add_generation_prompt=get_action,  # when getting action, we add the generation prompt assistant\n so that the model need not generate it
         )
 
+        """
+        把不该算 loss 的 token 都换成 -100（CrossEntropy 的 ignore_index）
+        顺便对一部分动作 token 做“问号遮挡增强”
+        """
         if get_loss:
-            labels = model_inputs["input_ids"].clone()
+            labels = model_inputs["input_ids"].clone()  # 完整输入序列
             # mask system message and image token IDs in the labels
             for i, example in enumerate(examples):
                 if (self._sysuser_len is None) or (not self.cache_sysuser_len):
-                    sysuser_conv = example[:-1]
+                    sysuser_conv = example[
+                        :-1
+                    ]  # 只保留 [system, user]，去掉最后的动作那条 message
                     sysuser_text = self.processor.apply_chat_template(
                         sysuser_conv, tokenize=False, add_vision_id=self.add_vision_id
                     )
                     sysuser_img, _ = process_vision_info(sysuser_conv)
 
+                    # 返回关键键 input_ids 文本token IDs (batch_size, sequence_length)；attention_mask - 注意力掩码；pixel_values - 图像特征等
                     sysuser_inputs = self.processor(
                         text=[sysuser_text],
                         images=[sysuser_img],
                         return_tensors="pt",
-                        padding=True,
+                        padding=True,  # 每个bs的补充到一样长
                     )
 
                     sysuser_len = sysuser_inputs["input_ids"].shape[1]
                     sysuser_len += 3  # to mask out `assistant\n`
+                    # “前缀长度”：从序列开头，一直到动作数字串开始之前的 token 总长度。
                     self._sysuser_len = sysuser_len
                 else:
                     sysuser_len = self._sysuser_len
-                # TIP: to decode the input use:
+                # TIP: to decode the input use:不同填充方向的解码方法;容易理解
                 # when padding is right: self.processor.decode(model_inputs["input_ids"][0][0:sysuser_len])
                 # when padding is left: self.processor.decode(model_inputs["input_ids"][0][num_pad_tokens: num_pad_tokens + sysuser_len])
+                """
+                告诉 CrossEntropy：
+                “这些 token 是 system+user+vision 的 prompt，不是要预测的目标，别算 loss。”
+                """
+
                 if self.processor.tokenizer.padding_side == "right":
                     labels[i, :sysuser_len] = -100
-                elif self.processor.tokenizer.padding_side == "left":
+                elif (
+                    self.processor.tokenizer.padding_side == "left"
+                ):  # （理论支持，实际上用 assert 禁了）不影响FlashAttention
+                    """
+                    疑似有bug.
+                    pad_token_id = self.processor.tokenizer.pad_token_id
+                    num_pad_tokens = sum(labels[i] == pad_token_id).item()
+                    labels[i, num_pad_tokens : num_pad_tokens + sysuser_len] = -100
+                    """
                     num_pad_tokens = sum(labels[i] == 151643).item()
                     labels[i, num_pad_tokens : num_pad_tokens + sysuser_len] = -100
                 else:
@@ -958,8 +1013,10 @@ class QwenActor(nn.Module):
                     )
 
                 assert (
-                    not self.processor.tokenizer.padding_side == "left"
+                    not self.processor.tokenizer.padding_side
+                    == "left"  # （理论支持，实际上用 assert 禁了）
                 ), "current implementation only supports right padding"
+
                 # for debugging, compare
                 # self.processor.decode(model_inputs["input_ids"][i][model_inputs["attention_mask"][i] == 1])
                 # with self.processor.decode(model_inputs["input_ids"][i])
