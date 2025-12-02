@@ -23,9 +23,9 @@ EXP_EXTRA:
 
 DATALOADER:
   # 每个 GPU / 进程的 batch 大小。8-》改为4 以减小显存占用
-  batch_size: 2
-  # PyTorch DataLoader 的 worker 数。
-  num_workers: 8
+  batch_size: 4
+  # PyTorch DataLoader 的 worker 数。8-》4
+  num_workers: 4
   ROBOVERSE:
     # 指向 RoboVerse 的一个数据配置文件，基础设置都在 img_libero_aug.yaml 里：用哪个 LeRobot repo；horizon；默认图像大小、增广方式等
     cfg_path: libs/RoboVerse/roboverse/configs/img_libero_aug.yaml

@@ -17,7 +17,7 @@ _C.EXP.DATASET = "roboverse"  # roboverse
 _C.EXP.MODEL = "qwen"
 _C.EXP.OPTIMIZER = "adam"  # adam, adamw, adamw_bnb_fp8, adamw_bnb
 _C.EXP.LR_SCHED = "none"  # cosine_anneal, none
-_C.EXP.AMP = False  # whether to use automatic mixed precision training
+_C.EXP.AMP = True  # whether to use automatic mixed precision training
 # ----------------------------------------------------------------------------
 # LOSS
 # ----------------------------------------------------------------------------
