@@ -136,6 +136,13 @@ def main():
 
     def model_act(*args, **kwargs):
         with torch.no_grad():
+            """
+            为什么推理也包一层 autocast？
+            跟训练时一样目的：推理吞吐更高 / 显存更省。
+            这里又搭配了 torch.no_grad()，所以：
+            没有梯度开销
+            如果 AMP 打开，推理就是 “bfloat16+no_grad” 的轻量模式。
+            """
             with torch.autocast(
                 device_type="cuda", dtype=torch.bfloat16, enabled=enable_amp
             ):

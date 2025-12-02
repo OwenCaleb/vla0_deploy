@@ -1,18 +1,29 @@
 # same as img_libero.yaml, except that it add image augmentations
+
+# 表示用“图像为主”的统一接口来读数据（而不是 state-only、语言-only 那种）
 unifier: image
 history: 1
 horizon: 8
+# 说明这是给 lerobot 风格 数据用的配置（而不是某个自定义 HDF5）
 datasets: [lerobot]
 
 LEROBOT:
   repo_id: physical-intelligence/libero
+  # 这两个 key 是“适配层”告诉 unifier：
+  # 我把 LeRobot 数据拿出来后，动作在哪一列、状态在哪一列。
   action_key: actions
   state_key: state
 
 IMAGE:
+  # 不裁剪，直接用完整图;在 cfg_opts 里用 IMAGE.crop_img:0.875 会覆盖这里，所以实际训练时是 0.875
   crop_img: 1.0
+  # 亮度增强变弱幅度
   brightness_aug: 0.2
+  # 对比度增强幅度（对“黑白拉开”程度做随机扰动）。
   contrast_aug: 0.2
+  # 饱和度增强（颜色更鲜艳或更灰）。
   saturation_aug: 0.2
+  # 色相扰动（整体偏一点蓝 / 黄 / 红），0.05 属于比较温和的范围。
   hue_aug: 0.05
+  # 在做数据统一 / 切片 / 归一化这些处理之后 Dataset 里是不是 额外 把“原始动作”也一起返回？
   return_ori_act: True

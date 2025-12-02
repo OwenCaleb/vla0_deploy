@@ -681,19 +681,30 @@ class QwenActor(nn.Module):
         get_one_step_action,
         last_action_txt,
     ):
+        """
+        这个 check_inputs 本质上是一个 “入口防御函数”：
+        在 forward 或 __call__ 真正干活前，把所有输入和配置先校验一遍，防止出现「配错模式 + 传错数据」导致的隐蔽 bug。
+        """
+        # 模型假设自己已经被“初始化完毕”（有 dataset_stats），不在 forward 里临时补齐。
         assert (
             self.dataset_stats is not None
         ), "dataset_stats must be set before calling forward"
         assert isinstance(instr, list)
 
+        # 模式互斥：要么算 loss，要么出 action
         assert not (get_loss and get_action)
         assert get_loss or get_action
+
+        # 一步一步动作模式的额外约束
+        # 一步一步生成动作 = “在线控制”场景，当前实现只支持单条轨迹，不支持 batch 版本。
         if get_one_step_action:
             assert get_action
             assert isinstance(last_action_txt, str)
             assert len(instr) == 1, "one_step_action is only supported for batch size 1"
+        # 对 RGB 输入的硬性检查（形状 + 数值范围）
         if self.rgb_input:
             assert rgb is not None
+            # [B, history, num_cam, H, W, 3]
             assert rgb.shape[1:] == (
                 self.history,
                 self.num_cam,
@@ -747,9 +758,7 @@ class QwenActor(nn.Module):
     def get_qwen_inputs(
         self,
         bs: int,  # 批次大小
-        imgs: List[
-            List[PIL.Image.Image]
-        ],  # 图像列表的列表 [[img1, img2], [img3, img4], ...]
+        imgs: List[List[PIL.Image.Image]],  # 图像列表的列表 [[img1, img2], [img3, img4], ...]
         instr: List[str],  # 指令列表 ["指令1", "指令2", ...]
         action_txt: List[str],  # 动作文本列表 ["100 200", "150 250", ...]
         drop_assistant: bool = False,  # 是否丢弃助手回复部分
@@ -962,9 +971,7 @@ class QwenActor(nn.Module):
             # mask system message and image token IDs in the labels
             for i, example in enumerate(examples):
                 if (self._sysuser_len is None) or (not self.cache_sysuser_len):
-                    sysuser_conv = example[
-                        :-1
-                    ]  # 只保留 [system, user]，去掉最后的动作那条 message
+                    sysuser_conv = example[:-1]  # 只保留 [system, user]，去掉最后的动作那条 message
                     sysuser_text = self.processor.apply_chat_template(
                         sysuser_conv, tokenize=False, add_vision_id=self.add_vision_id
                     )
@@ -1039,9 +1046,9 @@ class QwenActor(nn.Module):
                 mask_indices = [
                     x + sysuser_len for x in mask_indices
                 ]  # add sysuser_len to the mask indices to get the correct indices of these tokens
-                labels[i, mask_indices] = (
-                    -100
-                )  # these elements will not be used for loss calculation
+                labels[
+                    i, mask_indices
+                ] = -100  # these elements will not be used for loss calculation
                 model_inputs["input_ids"][
                     i, mask_indices
                 ] = 30  # replace the input ids with '?' token id
@@ -1110,18 +1117,38 @@ class QwenActor(nn.Module):
             if generate_temperature > 0:
                 sample_args["temperature"] = generate_temperature
             else:
-                sample_args["do_sample"] = (
-                    False  # greedy search, this makes the generation deterministic
-                )
+                sample_args[
+                    "do_sample"
+                ] = False  # greedy search, this makes the generation deterministic
 
             if get_one_step_action:
                 # we calculate the max number of tokens to generate for one step of action
                 # +1 is for the space token
+                """
+                这里进入「只生成一步动作」的模式。
+                self.act_dim：动作维度数，例如 4。
+                len(str(self.num_bins_actions))：
+                    如果 num_bins_actions = 1000
+                    str(1000) = "1000"，长度是 4
+                    用长度 4 来近似「每个数字最多需要 4 个字符」。
+                +1：多留一个位置给 空格，因为文本动作都是 "123 456 ...".
+                max_new_tokens = 4 * (4 + 1) = 20
+                也就是：最多给 20 个 token 来写完这一帧动作（4 维 × 每维最多 4 位数 + 空格）
+
+                """
                 max_new_tokens = self.act_dim * (len(str(self.num_bins_actions)) + 1)
                 if last_action_txt != "":
+                    # 如果之前已经有 last_action_txt，把它接在 prompt 后面
+                    # 把 "512 230 010 999 " 这种字符串 tokenization 成 ids，形状大概是 [1, T_last]。
                     last_action_txt_ids = self.processor.tokenizer(
                         last_action_txt, return_tensors="pt"
                     )["input_ids"].to(model_inputs["input_ids"].device)
+                    """
+                    把这段历史动作文本 拼到当前输入的末尾：
+                    model_inputs["input_ids"] 原来是 [1, T_prompt]，
+                    拼完变成 [1, T_prompt + T_last]。
+                    → 相当于告诉模型：「前面已经生成了这么多动作了，接着写下一步」。
+                    """
                     model_inputs["input_ids"] = torch.cat(
                         [model_inputs["input_ids"], last_action_txt_ids], dim=1
                     )
@@ -1141,16 +1168,20 @@ class QwenActor(nn.Module):
                 **model_inputs,
                 logits_processor=[self.logits_processor],
                 max_new_tokens=(
-                    max_new_tokens if get_one_step_action else self.num_tokens
+                    max_new_tokens
+                    if get_one_step_action
+                    else self.num_tokens  # 如果是 get_one_step_action=True，就是刚才算出的 max_new_tokens=20；否则用 self.num_tokens，代表一整段动作的长度上限。
                 ),
                 **sample_args,
             )
 
             input_ids = model_inputs["input_ids"]
+            # 把新生成的部分从原输入里切出来
             generated_ids_trimmed = [
                 out_ids[len(in_ids) :]
                 for in_ids, out_ids in zip(input_ids, generated_ids)
             ]
+            # 把 token id 转回字符串动作
             generated_action_txt = self.processor.batch_decode(
                 generated_ids_trimmed,
                 skip_special_tokens=True,
@@ -1159,12 +1190,25 @@ class QwenActor(nn.Module):
 
             if get_one_step_action:
                 # TODO: Only supports batch size 1
+                # 一步一步生成模式下，要把新一步接回历史
+                """
+                last_action_txt = "512 230 010 999 "
+                generated_action_txt[0] = "123 456 789 001 "（刚生成的一帧）
+                合并后：
+                generated_action_txt = ["512 230 010 999 123 456 789 001 "]
+                下次再调用 get_one_step_action=True 时，会把这个完整串又接回去继续写下一步。
+                """
                 generated_action_txt = [last_action_txt + generated_action_txt[0]]
 
+            # 把文本动作解析回数值动作
             out_ori_act = self.get_action_from_text_action(
                 generated_action_txt, instruction=instr
             )
-
+            """
+            out_ori_act 原 shape：[B, T, act_dim]（比如 [1, 5, 4]）
+            out_ori_act[:, -1:]：只保留最后一帧（最新生成的一帧），形状 [1, 1, 4]。
+            这样一步步控制时，上层控制循环拿到的就是「当前这一帧动作」。
+            """
             if get_one_step_action:
                 out_ori_act = out_ori_act[:, -1:]
 
@@ -1276,7 +1320,7 @@ class QwenActor(nn.Module):
             self.renderer.renderer.device = device  # 设置渲染器设备
             self.renderer.cameras.to(device)  # 迁移相机参数
 
-    def tile_images(images):
+    def tile_images(self, images):
         """
         Tile images into a single image 把多张图横着拼成一张长图
         :param images: list[Tensor], 每个 Tensor: (H, W, 3)

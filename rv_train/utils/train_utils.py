@@ -16,10 +16,24 @@ import torch.distributed as dist
 
 
 def setup(rank, world_size, port):
+    """
+    "localhost" 表示单机多卡训练
+    多机训练时通常设置为某个节点的IP地址
+    backend="nccl": 指定通信后端
+        "nccl": NVIDIA Collective Communications Library，推荐用于GPU训练
+        其他选项："gloo"（CPU/GPU通用）、"mpi"等
+    rank: 当前进程的排名（唯一标识）
+        0 通常是主进程（rank 0）
+        取值范围：0 到 world_size-1
+    world_size: 进程总数（通常等于GPU数量）
+    """
+    # 这里设置的是当前进程自己的环境变量，不是全局系统级的
+    # 大家在哪个地址+端口集合
     os.environ["MASTER_ADDR"] = "localhost"
     os.environ["MASTER_PORT"] = str(port)
 
     # initialize the process group
+    # 报道集合
     dist.init_process_group("nccl", rank=rank, world_size=world_size)
 
 

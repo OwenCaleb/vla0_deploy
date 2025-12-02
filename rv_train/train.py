@@ -52,8 +52,9 @@ def save_checkpoint(name, epoch, model, optimizer, lr_sched, cfg, log_dir):
         model_state = model_module.state_dict()
 
     # Prepare checkpoint data
+    # 如果是 HF 模型：这里是 None，因为你已经用 save_pretrained 存到目录里了；如果是普通模型：这里是 state_dict().
     checkpoint_data = {
-        "cfg": vars(cfg),
+        "cfg": vars(cfg),  # vars(cfg) 会把它转成普通的 dict（键值为所有字段）。
         "epoch": epoch,
         "model_state": model_state,
         "optimizer_state": optimizer.state_dict(),
@@ -64,6 +65,25 @@ def save_checkpoint(name, epoch, model, optimizer, lr_sched, cfg, log_dir):
     torch.save(checkpoint_data, pth_path)
 
     # save the dataset stats
+    """
+    这段是跟你当前工程（比如 VLA-0）强相关的逻辑：
+        cfg.EXP.MODEL 指明本次实验的模型类型，例如：
+            "qwen"：纯 Qwen 模型？
+            "dp"：diffusion policy？
+            "qwen_dp"：两者混合？
+        对这几种模型，代码约定：模型内部有一个属性：
+        model_module.original_dataset_stats
+        典型用途：训练前根据数据集统计得到的一些归一化信息：
+            均值 / 方差；
+            action / state 范围；
+            其他统计量（例如用于 rescale 输出）。
+        这里用 pickle 单独存为：
+        {log_dir}/dataset_stats.pkl
+        便于：
+            以后单独加载推理用（比如只有一个 ckpt 没有全项目代码时，也能拿到 stats）；
+            或者 eval 脚本直接用 log_dir/dataset_stats.pkl 做归一化。
+    也就是说，此处除了 .pth，又额外保存了一个数据集统计文件。
+    """
     if cfg.EXP.MODEL in ["qwen", "dp", "qwen_dp"]:
         with open(f"{log_dir}/dataset_stats.pkl", "wb") as f:
             pkl.dump(model_module.original_dataset_stats, f)
@@ -116,6 +136,8 @@ def load_model_opt_sched(
     only_load_model=False,
 ):
     """
+    在 load_model 基础上，加了一层策略开关
+    模型 + 优化器 + 调度器 + epoch 全家桶恢复”的工具函数。
     Loads a pretrained model from a given path.
     :param model: model to load
     :param optimizer: optimizer to load
@@ -148,6 +170,7 @@ def get_pretrained_model(model_path, device, torch_compile=False):
     :param model_path: path to the pretrained model
     :param device: device to load the model on, supports only single GPU for now
     :return: model, cfg
+    👉 “给你一个 ckpt 路径，我帮你把 config、模型构建、权重加载、dataset_stats 注入、device 迁移、可选 compile 一次性都做好，直接拿来推理或当预训练初始化”。
     """
     model_folder = "/".join(model_path.split("/")[:-1])
     cfg_path = model_folder + "/config.yaml"
@@ -183,6 +206,7 @@ def get_pretrained_model(model_path, device, torch_compile=False):
 
 
 def get_cfg(cfg_path, cfg_opts):
+    # 👉 从默认 + 配置文件 + 可选命令行覆盖，生成一个“冻结”的配置对象。
     cfg = get_cfg_defaults()
     if cfg_path != "":
         cfg.merge_from_file(cfg_path)
@@ -201,6 +225,7 @@ def get_inp(cfg, data_batch):
     Constructs the input for the model using the batched data.
     :param cfg: config object
     :param data_batch: contains the batched data provided by the dataloader
+    现在的 get_inp 是“空适配层”，啥也不干，只是原样返回 data_batch，但它作为接口存在，是为了以后在这里集中实现「数据 batch → 模型输入」的所有转换逻辑
     """
 
     inp = data_batch
@@ -259,6 +284,12 @@ def get_dataloader(split, cfg, get_dataset=False):
     if get_dataset:
         return dataset
     else:
+        """
+        标准 ImageNet DDP 的做法是：用 DistributedSampler 按 rank 切分数据 → 每个进程看 不同子集；
+        而这份代码如果 roboverse.get_unified_dataset 内部没有做 per-rank 切分，
+        那就是：每个进程都在整个数据集上跑一遍，只是顺序不一样。
+        RoboVerse 的 dataset 内部自己做了 rank/world_size 切分?等我看下get_unified_dataset
+        """
         return DataLoader(
             dataset,
             batch_size,
@@ -439,7 +470,7 @@ def get_log_dir(cfg, logdir_with_time=False):
 
 
 def entry_train(
-    rank,
+    rank,  # 当前进程的 rank（0,1,2,...），用来做 DDP、多卡分工。
     cfg,
     logdir_with_time=False,
     resume=False,
@@ -451,14 +482,21 @@ def entry_train(
     Training and evaluating a network based on the specified config.
     """
 
+    # 取出当前 rank 对应的 GPU ID
     device = devices[rank]
     device = f"cuda:{device}"
+    # 如果 devices 列表长度 > 1，就说明要用 DDP（多卡）。
     ddp = len(devices) > 1
+    # 初始化进程组（dist.init_process_group）。
+    # 把所有 rank 进程连成一条通信线，用于梯度同步等。
+    # 所有参与分布式训练的进程都要各自调用 init_process_group
     utils.setup(rank, world_size=len(devices), port=port)
     torch.cuda.set_device(device)
     if ddp:
         print(f"Running on rank {rank}")
 
+    # 理论上每个 rank 会用 SEED + rank 做随机种子，保证分布式时乱数不同、又可复现。
+    # 现在是注释状态，说明作者暂时不用这个（可能统一在别处设种子）。
     # random.seed(cfg.EXP.SEED + rank)
     # np.random.seed(cfg.EXP.SEED + rank)
     # torch.manual_seed(cfg.EXP.SEED + rank)
@@ -467,6 +505,7 @@ def entry_train(
     model = get_model(cfg)
     model.to(device)
 
+    # 默认 to_load_model = True，表示后面会通过 load_model_opt_sched 加载参数
     to_load_model = True
     if (
         hasattr(model, "load_param_before_ddp")
@@ -474,12 +513,14 @@ def entry_train(
         and resume
     ):
         to_load_model = False
+        # 有的模型在包进 DDP 前加载更安全，比如自定义 module、冻结部分参数。
         model, _ = load_model(model, model_path, cfg)
         model.to(device)
 
     if ddp:
         # Set find_unused_parameters=False when using gradient checkpointing
         # to avoid synchronization issues and deadlocks
+        # 梯度检查点：一种内存优化技术，通过牺牲计算时间（重新计算前向传播）来减少内存占用
         using_grad_checkpoint = False
         if cfg.EXP.MODEL in ["qwen", "qwen_dp"]:
             model_config = (
@@ -487,6 +528,9 @@ def entry_train(
             )
             using_grad_checkpoint = getattr(model_config, "grad_checkpoint", False)
 
+        # 这是分布式数据并行（DDP）中的一个重要参数，用于控制是否查找未使用的参数。
+        # 默认情况下（无梯度检查点）：开启检测，确保训练正确性
+        # 使用梯度检查点时：关闭检测，避免与检查点机制冲突
         find_unused_params = not using_grad_checkpoint
         if rank == 0:
             print(
@@ -515,8 +559,11 @@ def entry_train(
     if rank == 0:
         print_model_stats(model)
 
+    # 所有 rank 在这里 集合 一次。
+    # 确保模型加载、optimizer 初始化、log_dir 准备等都完成了，再一起进入训练循环。
     dist.barrier()
 
+    # 日志目录 & TensorBoard 只由 rank 0 管
     if rank == 0:
         log_dir = get_log_dir(cfg, logdir_with_time)
         print(f"Log directory: {log_dir}")
@@ -532,8 +579,9 @@ def entry_train(
         # log_dir and tb should not be used for any rank other than rank 0
         log_dir = ""
         tb = None
-
+    # 主训练循环
     for epoch in range(old_epoch + 1, cfg.TRAIN.num_epochs):
+        # fn_check_time_limit_and_relaunch 目前是 None，预留“超时重启”钩子（比如集群 job 限时）。
         fn_check_time_limit_and_relaunch = None
 
         # print epoch number
@@ -667,6 +715,7 @@ if __name__ == "__main__":
 
         devices = cmd_args.devices.split(",")
         devices = [int(x) for x in devices]
+        # 随机在 [27000, 29999] 范围里选一个端口号，用于 DDP 进程间通信（init_process_group）。
         port = (random.randint(0, 3000) % 3000) + 27000
         mp.spawn(
             entry_train,

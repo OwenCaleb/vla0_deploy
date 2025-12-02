@@ -1,5 +1,5 @@
 # Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
-#
+# yacs 配置系统的标准模板写法
 # Licensed under the CC BY-NC 4.0 license [see LICENSE for details].
 
 from yacs.config import CfgNode as CN
