@@ -833,11 +833,27 @@ class QwenActor(nn.Module):
             text=texts, images=image_inputs, return_tensors="pt", padding=True
         )
 
-        # 一键把所有输入搬到模型所在设备上的小套路，没有别的黑魔法。
+        # 一键把所有输入搬到模型所在设备上的小套路，没有别的黑魔法。改为FSDP适配
+
+        # for key in model_inputs:
+        #     model_inputs[key] = model_inputs[key].to(
+        #         next(self.model.parameters()).device
+        #     )
+        # return model_inputs, examples
+        # 先拿到本模块要用的 device
+        try:
+            # 优先用外面在 train.py 里设置的 self.device（FSDP 场景下推荐）
+            device = getattr(self, "device", None)
+            if device is None:
+                # 兼容旧逻辑：非 FSDP 时，self.model 里仍然有参数
+                device = next(self.model.parameters()).device
+        except StopIteration:
+            # FSDP 把参数都抽到外层了时，self.model.parameters() 可能是空的
+            device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
         for key in model_inputs:
-            model_inputs[key] = model_inputs[key].to(
-                next(self.model.parameters()).device
-            )
+            model_inputs[key] = model_inputs[key].to(device)
+
         return model_inputs, examples
 
     def forward(

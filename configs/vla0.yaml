@@ -22,8 +22,8 @@ EXP_EXTRA:
   save_ckp: 2
 
 DATALOADER:
-  # 每个 GPU / 进程的 batch 大小。
-  batch_size: 8
+  # 每个 GPU / 进程的 batch 大小。8-》改为4 以减小显存占用
+  batch_size: 2
   # PyTorch DataLoader 的 worker 数。
   num_workers: 8
   ROBOVERSE:

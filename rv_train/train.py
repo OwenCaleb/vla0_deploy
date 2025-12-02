@@ -19,6 +19,11 @@ import torch.distributed as dist
 import torch.multiprocessing as mp
 import tqdm
 from torch import autocast
+# 增加了FSDP的逻辑
+from torch.distributed.fsdp import BackwardPrefetch, FullStateDictConfig
+from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
+from torch.distributed.fsdp import (MixedPrecision, ShardingStrategy,
+                                    StateDictType)
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.optim import lr_scheduler
 from torch.utils.data import DataLoader
@@ -91,6 +96,40 @@ def save_checkpoint(name, epoch, model, optimizer, lr_sched, cfg, log_dir):
     print(f"Checkpoint saved to {pth_path}.")
 
 
+# def load_model(model, model_path, cfg):
+#     """
+#     Loads a pretrained model from a given path.
+#     :param model: model to load
+#     :param model_path: path to the pretrained model
+#     :param cfg: config object
+#     """
+#     print(f"Recovering model and checkpoint from {model_path}")
+#     checkpoint = torch.load(model_path, map_location="cpu", weights_only=False)
+
+#     # take care of DDP
+#     if isinstance(model, DDP):
+#         model_module = model.module
+#     else:
+#         model_module = model
+
+#     # take care of model loading for models that have load_pretrained method
+#     if hasattr(model_module, "from_pretrained"):
+#         print("WARNING: model has from_pretrained method")
+#         assert model_path[-4:] == ".pth"
+#         print(f"Loading from {model_path[:-4]}")
+#         model_module.from_pretrained(model_path[:-4])
+#     else:
+#         model_module.load_state_dict(checkpoint["model_state"])
+
+#     # load the dataset stats
+#     if cfg.EXP.MODEL in ["qwen", "dp", "qwen_dp"]:
+#         log_dir = "/".join(model_path.split("/")[:-1])
+#         with open(f"{log_dir}/dataset_stats.pkl", "rb") as f:
+#             original_dataset_stats = pkl.load(f)
+#             model_module.set_dataset_stats(original_dataset_stats)
+
+
+#     return model, checkpoint
 def load_model(model, model_path, cfg):
     """
     Loads a pretrained model from a given path.
@@ -101,22 +140,29 @@ def load_model(model, model_path, cfg):
     print(f"Recovering model and checkpoint from {model_path}")
     checkpoint = torch.load(model_path, map_location="cpu", weights_only=False)
 
-    # take care of DDP
-    if isinstance(model, DDP):
+    # 兼容 DDP / FSDP
+    if isinstance(model, (DDP, FSDP)):
         model_module = model.module
     else:
         model_module = model
 
-    # take care of model loading for models that have load_pretrained method
+    # 带 from_pretrained 的特殊模型
     if hasattr(model_module, "from_pretrained"):
         print("WARNING: model has from_pretrained method")
         assert model_path[-4:] == ".pth"
         print(f"Loading from {model_path[:-4]}")
         model_module.from_pretrained(model_path[:-4])
     else:
-        model_module.load_state_dict(checkpoint["model_state"])
+        state = checkpoint["model_state"]
+        if isinstance(model, FSDP):
+            # FSDP: 用 FULL_STATE_DICT 加载，内部自动切片
+            full_cfg = FullStateDictConfig(rank0_only=False, offload_to_cpu=True)
+            with FSDP.state_dict_type(model, StateDictType.FULL_STATE_DICT, full_cfg):
+                model.load_state_dict(state)
+        else:
+            model_module.load_state_dict(state)
 
-    # load the dataset stats
+    # load the dataset stats（log_dir 推断逻辑不变）
     if cfg.EXP.MODEL in ["qwen", "dp", "qwen_dp"]:
         log_dir = "/".join(model_path.split("/")[:-1])
         with open(f"{log_dir}/dataset_stats.pkl", "rb") as f:
@@ -383,14 +429,18 @@ def train(
     """
 
     model.train()
+    # 创建性能跟踪器
     perf = utils.PerfTrackTrain(cfg)
 
-    time_for = 0
-    time_bac = 0
-    time_dl = 0
-    time4 = time()
+    time_for = 0  # 前向传播总时间
+    time_bac = 0  # 反向传播总时间
+    time_dl = 0  # 数据加载总时间
+    time4 = time()  # 记录循环开始时间（用于计算数据加载时间）
+    # 进度条宽度自适应终端宽度
     for i, data_batch in tqdm.tqdm(enumerate(loader), dynamic_ncols=True):
+        # 对batch数据进行预处理（如数据增强）batch processing
         data_batch = loader.dataset.batch_proc(data_batch, device)
+        # 从batch中提取模型需要的输入
         inp = get_inp(cfg, data_batch)
 
         time1 = time()
@@ -399,9 +449,10 @@ def train(
         loss = out["loss"]
         perf.update_all(data_batch=data_batch, out=out, loss=loss)
 
-        time2 = time()
-        optimizer.zero_grad()
-        loss.backward()
+        time2 = time()  # 记录反向传播开始时间
+        optimizer.zero_grad()  # 清空梯度
+        loss.backward()  # 反向传播计算梯度
+        # 梯度裁剪：防止梯度爆炸，将梯度范数限制在cfg.TRAIN.clip_grad_norm
         if cfg.TRAIN.clip_grad_norm != 0:
             torch.nn.utils.clip_grad_norm_(model.parameters(), cfg.TRAIN.clip_grad_norm)
 
@@ -416,6 +467,15 @@ def train(
         time_bac += time3 - time2
         time4 = time()
 
+        """
+        GPU 服务器、云平台、学校集群（Slurm/HTCondor）都有“时间限制”。
+        比如一个训练任务最多只能跑 8 小时，超过会被系统强制杀掉。
+        训练一段时间（例如 7 小时 50 分）
+        快到时间上限 → 自动保存模型 checkpoint
+        优雅退出（不让系统强制杀）
+        自动重新启动相同的训练脚本
+        从刚刚保存的 checkpoint 继续训练
+        """
         if fn_check_time_limit_and_relaunch is not None:
             # checking every 300 batches ~ 5 minutes
             if (i + 1) % 300 == 0:
@@ -438,7 +498,7 @@ def train(
 def print_model_stats(model):
     """Print model statistics including parameter counts."""
     # Get model module if using DDP
-    model_module = model.module if isinstance(model, DDP) else model
+    model_module = model.module if isinstance(model, (DDP, FSDP)) else model
 
     # Count total parameters
     total_params = sum(p.numel() for p in model_module.parameters())
@@ -505,6 +565,9 @@ def entry_train(
     model = get_model(cfg)
     model.to(device)
 
+    # FSDP 增加
+    model.device = device
+
     # 默认 to_load_model = True，表示后面会通过 load_model_opt_sched 加载参数
     to_load_model = True
     if (
@@ -521,12 +584,14 @@ def entry_train(
         # Set find_unused_parameters=False when using gradient checkpointing
         # to avoid synchronization issues and deadlocks
         # 梯度检查点：一种内存优化技术，通过牺牲计算时间（重新计算前向传播）来减少内存占用
-        using_grad_checkpoint = False
+        # using_grad_checkpoint = False
+        using_grad_checkpoint = True
         if cfg.EXP.MODEL in ["qwen", "qwen_dp"]:
             model_config = (
                 cfg.MODEL.QWEN if cfg.EXP.MODEL == "qwen" else cfg.MODEL.QWEN_DP
             )
-            using_grad_checkpoint = getattr(model_config, "grad_checkpoint", False)
+            # using_grad_checkpoint = getattr(model_config, "grad_checkpoint", False)
+            using_grad_checkpoint = getattr(model_config, "grad_checkpoint", True)
 
         # 这是分布式数据并行（DDP）中的一个重要参数，用于控制是否查找未使用的参数。
         # 默认情况下（无梯度检查点）：开启检测，确保训练正确性
@@ -536,8 +601,22 @@ def entry_train(
             print(
                 f"DDP configuration: grad_checkpoint={using_grad_checkpoint}, find_unused_parameters={find_unused_params}"
             )
-        model = DDP(
-            model, device_ids=[device], find_unused_parameters=find_unused_params
+        # model = DDP(
+        #     model, device_ids=[device], find_unused_parameters=find_unused_params
+        # )
+        mp_policy = MixedPrecision(
+            param_dtype=torch.bfloat16,
+            reduce_dtype=torch.bfloat16,
+            buffer_dtype=torch.bfloat16,
+        )
+
+        # FULL_SHARD: 参数 + 梯度 + optimizer 状态全部切片
+        model = FSDP(
+            model,
+            sharding_strategy=ShardingStrategy.FULL_SHARD,
+            backward_prefetch=BackwardPrefetch.BACKWARD_PRE,
+            mixed_precision=mp_policy,
+            device_id=device,
         )
     if rank == 0:
         print(model)
