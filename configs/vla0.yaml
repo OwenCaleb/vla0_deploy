@@ -11,7 +11,7 @@ EXP:
 TRAIN:
   # 初始学习率 5×10⁻⁶，对 3B 模型来说偏小、典型“只微调一点头层”的设定。
   lr: 5e-6
-  num_epochs: 24
+  num_epochs: 2
   # 0 表示不做梯度裁剪；>0 就是 max grad norm。
   clip_grad_norm: 0.0
   # L2 正则（weight decay）非常小，几乎可以看成没有 regularization。
@@ -19,7 +19,7 @@ TRAIN:
 
 EXP_EXTRA:
   # 每隔 2 个 epoch 保存一次 checkpoint
-  save_ckp: 2
+  save_ckp: 1
 
 DATALOADER:
   # 每个 GPU / 进程的 batch 大小。8-》改为4 以减小显存占用

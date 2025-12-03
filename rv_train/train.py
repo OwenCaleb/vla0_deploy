@@ -17,7 +17,7 @@ import roboverse
 import torch
 import torch.distributed as dist
 import torch.multiprocessing as mp
-import tqdm
+# import tqdm
 from torch import autocast
 # 增加了FSDP的逻辑
 from torch.distributed.fsdp import BackwardPrefetch, FullStateDictConfig
@@ -423,6 +423,8 @@ def train(
     check_grad_fn=False,  # Rename this parameter
     fn_check_time_limit_and_relaunch=None,
     rank=0,
+    epoch=0,
+    tb=None,
 ):
     """
     Training for one epoch
@@ -432,12 +434,21 @@ def train(
     # 创建性能跟踪器
     perf = utils.PerfTrackTrain(cfg)
 
+    LOG_EVERY = 20  # 每 20 个 batch 打一行印
+    global_step_base = epoch * len(loader)  # 用于计算全局 step
+    TB_EVERY = 1  # 每 1 个 batch 往 TB 写一次
+
     time_for = 0  # 前向传播总时间
     time_bac = 0  # 反向传播总时间
     time_dl = 0  # 数据加载总时间
     time4 = time()  # 记录循环开始时间（用于计算数据加载时间）
+
+    epoch_start_time = time()  # 用来算每迭代耗时
+    num_batches = len(loader)  # 总共多少个 iter
+
     # 进度条宽度自适应终端宽度
-    for i, data_batch in tqdm.tqdm(enumerate(loader), dynamic_ncols=True):
+    # for i, data_batch in tqdm.tqdm(enumerate(loader), dynamic_ncols=True):
+    for i, data_batch in enumerate(loader):
         # 对batch数据进行预处理（如数据增强）batch processing
         data_batch = loader.dataset.batch_proc(data_batch, device)
         # 从batch中提取模型需要的输入
@@ -466,7 +477,32 @@ def train(
         time_for += time2 - time1
         time_bac += time3 - time2
         time4 = time()
+        # =============================================================
+        # ====== ⭐ 新增：每 N 个 batch 打印一行 ======
+        curr_loss = loss.item()
+        avg_loss = perf.agg_loss()
+        if rank == 0 and ((i + 1) % LOG_EVERY == 0 or i == 0):
+            now = time()
+            elapsed = now - epoch_start_time
+            it_per_sec = (i + 1) / max(elapsed, 1e-6)
 
+            print(
+                f"[epoch {epoch}/{cfg.TRAIN.num_epochs - 1}] "
+                f"iter {i+1}/{num_batches}  "
+                f"loss {curr_loss:.4f}  avg_loss {avg_loss:.4f}  "
+                f"it/s {it_per_sec:.2f}  "
+                f"t_fwd {time_for/(i+1):.3f}s  "
+                f"t_bwd {time_bac/(i+1):.3f}s  "
+                f"t_data {time_dl/(i+1):.3f}s"
+            )
+        if rank == 0 and tb is not None and (i + 1) % TB_EVERY == 0:
+            # ======= ⭐ 可选：写入 TensorBoard，一样只在 rank 0 做 =======
+            global_step = global_step_base + i + 1
+            tb.update(
+                "train_iter",
+                global_step,
+                {"loss": curr_loss, "avg_loss": avg_loss},
+            )
         """
         GPU 服务器、云平台、学校集群（Slurm/HTCondor）都有“时间限制”。
         比如一个训练任务最多只能跑 8 小时，超过会被系统强制杀掉。
@@ -679,6 +715,8 @@ def entry_train(
             device=device,
             fn_check_time_limit_and_relaunch=fn_check_time_limit_and_relaunch,
             rank=rank,
+            epoch=epoch,
+            tb=tb if rank == 0 else None,
         )
 
         # update tensorboard
