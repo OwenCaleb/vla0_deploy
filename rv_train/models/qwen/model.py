@@ -464,6 +464,7 @@ class QwenActor(nn.Module):
         """
         model = Qwen2_5_VLForConditionalGeneration.from_pretrained(
             qwen_model_id,
+            device_map="auto",  # 自动分配到可用GPU
             # device_map={"": "cuda:0"},  # Use the explicit map
             quantization_config=bnb_config,
             torch_dtype=torch.bfloat16,
@@ -841,6 +842,18 @@ class QwenActor(nn.Module):
         #     )
         # return model_inputs, examples
         # 先拿到本模块要用的 device
+        # 如果模型由 HuggingFace accelerate 管理（使用 device_map），
+        # 就不要手动 .to(device)，直接让 accelerate 按 device_map 搬运。
+
+        if (
+            hasattr(self.model, "hf_device_map")
+            or getattr(self.model, "_hf_hook", None) is not None
+        ):
+            # processor 默认返回的是 CPU tensor，这里直接返回即可
+            return model_inputs, examples
+        # 否则（比如普通单卡 / 你自己管理 device 的情况），
+        # 仍然使用原来的逻辑手动搬到 self.device
+
         try:
             # 优先用外面在 train.py 里设置的 self.device（FSDP 场景下推荐）
             device = getattr(self, "device", None)
@@ -1300,7 +1313,8 @@ class QwenActor(nn.Module):
                 extra_kwargs["config"] = config
             self.model = Qwen2_5_VLForConditionalGeneration.from_pretrained(
                 path,
-                # device_map={"": "cuda:0"},
+                # device_map={"": "cuda:0"}, # 可能会创建 uint8 缓冲区 FSDP的lora
+                device_map="auto",
                 torch_dtype=torch.bfloat16,
                 **extra_kwargs,
             )

@@ -382,7 +382,11 @@ if __name__ == "__main__":
     from roboverse.main import get_cfg
 
     # cfg = get_cfg("roboverse/configs/img_libero.yaml")
-    cfg = get_cfg("roboverse/configs/img_real.yaml")
+    # cfg = get_cfg("roboverse/configs/img_real.yaml")
+
+    cfg = get_cfg(
+        "/home/liwenbo/projects/VLA/vla0_deploy/libs/RoboVerse/roboverse/configs/img_libero_aug.yaml"
+    )
     # cfg.unifier = "image"
 
     dataset = LeRobotRV(
@@ -397,6 +401,10 @@ if __name__ == "__main__":
     print(f"Sample keys: {sample.keys()}")
     print(f"LeRobot Dataset keys: {dataset.dataset[0].keys()}")
     breakpoint()
+    # dir()            # 查看当前变量
+    # locals()         # 查看局部变量
+    # dataset[0]       # 获取另一个样本
+    # len(dataset)     # 检查数据集大小
 
     # for libero
     # print(f"dataset state: {dataset.dataset[0].get('state').shape}")

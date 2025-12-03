@@ -1,6 +1,6 @@
 EXP:
   # 实验名字
-  EXP_ID: "vla0"
+  EXP_ID: "vla0_qwen3b_fullft_bs8_lr5e-6_ep24"
   MODEL: "qwen" 
   # 不用学习率 scheduler，训练全程固定 lr
   LR_SCHED: "none"
@@ -23,7 +23,7 @@ EXP_EXTRA:
 
 DATALOADER:
   # 每个 GPU / 进程的 batch 大小。8-》改为4 以减小显存占用
-  batch_size: 4
+  batch_size: 16
   # PyTorch DataLoader 的 worker 数。8-》4
   num_workers: 4
   ROBOVERSE:
@@ -37,8 +37,8 @@ MODEL:
     # 给视觉 token 加一个“vision ID”标识（类似 segment embedding），帮助模型区分图像 token 和纯文本 token。
     add_vision_id: True
     # 不用 LoRA / QLoRA，直接常规 full / partial fine-tune（具体冻结策略看代码）。如果你想低显存微调，后面可以尝试把其中一个打开。
-    use_lora: True 
-    use_qlora: True
+    use_lora: False
+    use_qlora: False
     # 不使用 flash-attn-2（可能是为了兼容性，或者你没装对应版本）；装好了可以设 True 换成高效注意力
     use_flash_attention_2: False
     # 输入图像的 size（H,W），要和 DATALOADER 的 IMAGE.img_size 保持一致。

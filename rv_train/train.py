@@ -225,7 +225,7 @@ def get_pretrained_model(model_path, device, torch_compile=False):
     model = get_model(
         cfg, calculate_dataset_stats=False
     )  # don't calculate dataset stats for pretrained model, its loaded from a checkpoint
-    model.to(device)
+    # model.to(device) devicemap auto后不用自己管理
     optimizer, lr_sched = get_optimizer(cfg, model, num_gpus=1)
 
     model, _, _, _ = load_model_opt_sched(
@@ -563,7 +563,7 @@ def entry_train(
 
     loader_train = get_dataloader(split="train", cfg=cfg)
     model = get_model(cfg)
-    model.to(device)
+    # model.to(device) # devicemap auto后不用自己管理
 
     # FSDP 增加
     model.device = device
@@ -578,7 +578,8 @@ def entry_train(
         to_load_model = False
         # 有的模型在包进 DDP 前加载更安全，比如自定义 module、冻结部分参数。
         model, _ = load_model(model, model_path, cfg)
-        model.to(device)
+        # device map auto后不用自己管理
+        # model.to(device)
 
     if ddp:
         # Set find_unused_parameters=False when using gradient checkpointing
@@ -611,12 +612,14 @@ def entry_train(
         )
 
         # FULL_SHARD: 参数 + 梯度 + optimizer 状态全部切片
+        # 启用lora时候崩溃，FSDP要求一个张量里所有元素必须是相同数据类型 暂时先不处理
         model = FSDP(
             model,
             sharding_strategy=ShardingStrategy.FULL_SHARD,
             backward_prefetch=BackwardPrefetch.BACKWARD_PRE,
             mixed_precision=mp_policy,
             device_id=device,
+            use_orig_params=True,
         )
     if rank == 0:
         print(model)
