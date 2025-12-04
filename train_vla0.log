@@ -59,7 +59,7 @@ Stats: {'out_ori_act': {'max': array([0.9375    , 0.9375    , 0.9375    , 0.3557
        0.375     , 1.        ]), 'min': array([-0.9375    , -0.9375    , -0.9375    , -0.25821429, -0.375     ,
        -0.36750001, -1.        ])}}
 `torch_dtype` is deprecated! Use `dtype` instead!
-Loading checkpoint shards:   0%|          | 0/2 [00:00<?, ?it/s]Loading checkpoint shards:  50%|█████     | 1/2 [00:01<00:01,  1.10s/it]Loading checkpoint shards: 100%|██████████| 2/2 [00:01<00:00,  1.06it/s]Loading checkpoint shards: 100%|██████████| 2/2 [00:01<00:00,  1.03it/s]
+Loading checkpoint shards:   0%|          | 0/2 [00:00<?, ?it/s]Loading checkpoint shards:  50%|█████     | 1/2 [00:00<00:00,  1.05it/s]Loading checkpoint shards: 100%|██████████| 2/2 [00:01<00:00,  1.14it/s]Loading checkpoint shards: 100%|██████████| 2/2 [00:01<00:00,  1.12it/s]
 The image processor of type `Qwen2VLImageProcessor` is now loaded as a fast processor by default, even if the model checkpoint was saved with a slow processor. This is a breaking change and may produce slightly different outputs. To continue using the slow processor, instantiate this class with `use_fast=False`. Note that this behavior will be extended to all models in a future release.
 WARNING: Using hardcoded dataset stats for DP3. This should be replaced with loading from a file.
 WARNING: split is ignored for roboverse dataset.
@@ -136,13 +136,338 @@ Total parameters: 3,754,622,976
 Trainable parameters: 3,754,622,976
 Non-trainable parameters: 0
 ==================================================
-[rank0]:[W1203 20:51:45.180678028 ProcessGroupNCCL.cpp:5072] Guessing device ID based on global rank. This can cause a hang if rank to GPU mapping is heterogeneous. You can specify device_id in init_process_group()
+[rank0]:[W1203 21:30:11.021114662 ProcessGroupNCCL.cpp:5072] Guessing device ID based on global rank. This can cause a hang if rank to GPU mapping is heterogeneous. You can specify device_id in init_process_group()
 Log directory: ./runs/vla0_qwen3b_fullft_bs8_lr5e-6_ep24
 Training for epoch 0 / 2
 Not tracking performance
-[epoch 0/1] iter 1/17091  loss 1.6788  avg_loss 1.6788  it/s 0.05  t_fwd 3.512s  t_bwd 3.473s  t_data 14.799s
-[epoch 0/1] iter 20/17091  loss 1.1767  avg_loss 1.4348  it/s 0.14  t_fwd 3.044s  t_bwd 3.278s  t_data 0.756s
-[epoch 0/1] iter 40/17091  loss 1.1517  avg_loss 1.3222  it/s 0.15  t_fwd 3.073s  t_bwd 3.281s  t_data 0.386s
-[epoch 0/1] iter 60/17091  loss 1.0217  avg_loss 1.2421  it/s 0.15  t_fwd 3.074s  t_bwd 3.284s  t_data 0.263s
-[epoch 0/1] iter 80/17091  loss 0.9897  avg_loss 1.1827  it/s 0.15  t_fwd 3.080s  t_bwd 3.283s  t_data 0.202s
-[epoch 0/1] iter 100/17091  loss 0.9376  avg_loss 1.1431  it/s 0.15  t_fwd 3.083s  t_bwd 3.289s  t_data 0.165s
+[epoch 0/1] iter 1/17091  loss 1.6334  avg_loss 1.6334  it/s 0.05  t_fwd 3.613s  t_bwd 3.296s  t_data 14.598s
+[epoch 0/1] iter 20/17091  loss 1.3565  avg_loss 1.4081  it/s 0.14  t_fwd 3.180s  t_bwd 3.391s  t_data 0.746s
+[epoch 0/1] iter 40/17091  loss 1.1595  avg_loss 1.2999  it/s 0.14  t_fwd 3.148s  t_bwd 3.368s  t_data 0.381s
+[epoch 0/1] iter 60/17091  loss 1.0070  avg_loss 1.2287  it/s 0.15  t_fwd 3.150s  t_bwd 3.366s  t_data 0.260s
+[epoch 0/1] iter 80/17091  loss 1.0083  avg_loss 1.1831  it/s 0.15  t_fwd 3.160s  t_bwd 3.371s  t_data 0.199s
+[epoch 0/1] iter 100/17091  loss 0.9467  avg_loss 1.1477  it/s 0.15  t_fwd 3.154s  t_bwd 3.354s  t_data 0.163s
+[epoch 0/1] iter 120/17091  loss 0.9124  avg_loss 1.1139  it/s 0.15  t_fwd 3.136s  t_bwd 3.335s  t_data 0.138s
+[epoch 0/1] iter 140/17091  loss 0.9074  avg_loss 1.0878  it/s 0.15  t_fwd 3.141s  t_bwd 3.345s  t_data 0.121s
+[epoch 0/1] iter 160/17091  loss 0.8818  avg_loss 1.0657  it/s 0.15  t_fwd 3.131s  t_bwd 3.345s  t_data 0.108s
+[epoch 0/1] iter 180/17091  loss 0.9887  avg_loss 1.0486  it/s 0.15  t_fwd 3.149s  t_bwd 3.357s  t_data 0.098s
+[epoch 0/1] iter 200/17091  loss 0.7670  avg_loss 1.0320  it/s 0.15  t_fwd 3.143s  t_bwd 3.358s  t_data 0.090s
+[epoch 0/1] iter 220/17091  loss 0.9032  avg_loss 1.0189  it/s 0.15  t_fwd 3.143s  t_bwd 3.358s  t_data 0.083s
+[epoch 0/1] iter 240/17091  loss 0.9056  avg_loss 1.0060  it/s 0.15  t_fwd 3.138s  t_bwd 3.356s  t_data 0.078s
+[epoch 0/1] iter 260/17091  loss 0.9274  avg_loss 0.9973  it/s 0.15  t_fwd 3.135s  t_bwd 3.351s  t_data 0.073s
+[epoch 0/1] iter 280/17091  loss 0.9702  avg_loss 0.9876  it/s 0.15  t_fwd 3.137s  t_bwd 3.359s  t_data 0.069s
+[epoch 0/1] iter 300/17091  loss 0.7649  avg_loss 0.9771  it/s 0.15  t_fwd 3.139s  t_bwd 3.363s  t_data 0.066s
+[epoch 0/1] iter 320/17091  loss 0.8365  avg_loss 0.9696  it/s 0.15  t_fwd 3.145s  t_bwd 3.366s  t_data 0.063s
+[epoch 0/1] iter 340/17091  loss 0.8931  avg_loss 0.9628  it/s 0.15  t_fwd 3.149s  t_bwd 3.367s  t_data 0.060s
+[epoch 0/1] iter 360/17091  loss 0.8457  avg_loss 0.9564  it/s 0.15  t_fwd 3.150s  t_bwd 3.363s  t_data 0.057s
+[epoch 0/1] iter 380/17091  loss 0.8591  avg_loss 0.9509  it/s 0.15  t_fwd 3.148s  t_bwd 3.360s  t_data 0.055s
+[epoch 0/1] iter 400/17091  loss 0.8288  avg_loss 0.9434  it/s 0.15  t_fwd 3.146s  t_bwd 3.356s  t_data 0.053s
+[epoch 0/1] iter 420/17091  loss 0.8210  avg_loss 0.9375  it/s 0.15  t_fwd 3.144s  t_bwd 3.355s  t_data 0.052s
+[epoch 0/1] iter 440/17091  loss 0.8213  avg_loss 0.9329  it/s 0.15  t_fwd 3.141s  t_bwd 3.350s  t_data 0.050s
+[epoch 0/1] iter 460/17091  loss 0.8336  avg_loss 0.9285  it/s 0.15  t_fwd 3.137s  t_bwd 3.347s  t_data 0.049s
+[epoch 0/1] iter 480/17091  loss 0.7944  avg_loss 0.9240  it/s 0.15  t_fwd 3.135s  t_bwd 3.344s  t_data 0.047s
+[epoch 0/1] iter 500/17091  loss 0.9172  avg_loss 0.9192  it/s 0.15  t_fwd 3.131s  t_bwd 3.341s  t_data 0.046s
+[epoch 0/1] iter 520/17091  loss 0.7704  avg_loss 0.9153  it/s 0.15  t_fwd 3.129s  t_bwd 3.338s  t_data 0.045s
+[epoch 0/1] iter 540/17091  loss 0.9100  avg_loss 0.9118  it/s 0.15  t_fwd 3.130s  t_bwd 3.339s  t_data 0.044s
+[epoch 0/1] iter 560/17091  loss 0.8858  avg_loss 0.9081  it/s 0.15  t_fwd 3.131s  t_bwd 3.338s  t_data 0.043s
+[epoch 0/1] iter 580/17091  loss 0.7049  avg_loss 0.9041  it/s 0.15  t_fwd 3.131s  t_bwd 3.337s  t_data 0.042s
+[epoch 0/1] iter 600/17091  loss 0.7195  avg_loss 0.9006  it/s 0.15  t_fwd 3.130s  t_bwd 3.338s  t_data 0.041s
+[epoch 0/1] iter 620/17091  loss 0.7508  avg_loss 0.8969  it/s 0.15  t_fwd 3.131s  t_bwd 3.337s  t_data 0.041s
+[epoch 0/1] iter 640/17091  loss 0.7993  avg_loss 0.8939  it/s 0.15  t_fwd 3.132s  t_bwd 3.343s  t_data 0.040s
+[epoch 0/1] iter 660/17091  loss 0.7472  avg_loss 0.8913  it/s 0.15  t_fwd 3.135s  t_bwd 3.355s  t_data 0.039s
+[epoch 0/1] iter 680/17091  loss 0.8024  avg_loss 0.8886  it/s 0.15  t_fwd 3.136s  t_bwd 3.359s  t_data 0.038s
+[epoch 0/1] iter 700/17091  loss 0.7745  avg_loss 0.8856  it/s 0.15  t_fwd 3.135s  t_bwd 3.358s  t_data 0.038s
+[epoch 0/1] iter 720/17091  loss 0.7948  avg_loss 0.8829  it/s 0.15  t_fwd 3.141s  t_bwd 3.362s  t_data 0.037s
+[epoch 0/1] iter 740/17091  loss 0.8472  avg_loss 0.8805  it/s 0.15  t_fwd 3.142s  t_bwd 3.362s  t_data 0.037s
+[epoch 0/1] iter 760/17091  loss 0.6679  avg_loss 0.8783  it/s 0.15  t_fwd 3.145s  t_bwd 3.365s  t_data 0.036s
+[epoch 0/1] iter 780/17091  loss 0.6679  avg_loss 0.8763  it/s 0.15  t_fwd 3.146s  t_bwd 3.364s  t_data 0.036s
+[epoch 0/1] iter 800/17091  loss 0.7848  avg_loss 0.8740  it/s 0.15  t_fwd 3.146s  t_bwd 3.365s  t_data 0.035s
+[epoch 0/1] iter 820/17091  loss 0.7657  avg_loss 0.8714  it/s 0.15  t_fwd 3.148s  t_bwd 3.365s  t_data 0.035s
+[epoch 0/1] iter 840/17091  loss 0.7484  avg_loss 0.8692  it/s 0.15  t_fwd 3.148s  t_bwd 3.364s  t_data 0.034s
+[epoch 0/1] iter 860/17091  loss 0.7884  avg_loss 0.8670  it/s 0.15  t_fwd 3.149s  t_bwd 3.365s  t_data 0.034s
+[epoch 0/1] iter 880/17091  loss 0.7924  avg_loss 0.8650  it/s 0.15  t_fwd 3.149s  t_bwd 3.364s  t_data 0.034s
+[epoch 0/1] iter 900/17091  loss 0.7076  avg_loss 0.8633  it/s 0.15  t_fwd 3.149s  t_bwd 3.364s  t_data 0.033s
+[epoch 0/1] iter 920/17091  loss 0.8308  avg_loss 0.8615  it/s 0.15  t_fwd 3.150s  t_bwd 3.364s  t_data 0.033s
+[epoch 0/1] iter 940/17091  loss 0.7416  avg_loss 0.8596  it/s 0.15  t_fwd 3.150s  t_bwd 3.363s  t_data 0.033s
+[epoch 0/1] iter 960/17091  loss 0.8000  avg_loss 0.8577  it/s 0.15  t_fwd 3.150s  t_bwd 3.362s  t_data 0.032s
+[epoch 0/1] iter 980/17091  loss 0.7679  avg_loss 0.8558  it/s 0.15  t_fwd 3.152s  t_bwd 3.363s  t_data 0.032s
+[epoch 0/1] iter 1000/17091  loss 0.6620  avg_loss 0.8542  it/s 0.15  t_fwd 3.152s  t_bwd 3.362s  t_data 0.032s
+[epoch 0/1] iter 1020/17091  loss 0.7612  avg_loss 0.8529  it/s 0.15  t_fwd 3.154s  t_bwd 3.362s  t_data 0.031s
+[epoch 0/1] iter 1040/17091  loss 0.8523  avg_loss 0.8514  it/s 0.15  t_fwd 3.154s  t_bwd 3.362s  t_data 0.031s
+[epoch 0/1] iter 1060/17091  loss 0.8308  avg_loss 0.8502  it/s 0.15  t_fwd 3.154s  t_bwd 3.362s  t_data 0.031s
+[epoch 0/1] iter 1080/17091  loss 0.8446  avg_loss 0.8489  it/s 0.15  t_fwd 3.155s  t_bwd 3.362s  t_data 0.030s
+[epoch 0/1] iter 1100/17091  loss 0.7232  avg_loss 0.8476  it/s 0.15  t_fwd 3.154s  t_bwd 3.361s  t_data 0.030s
+[epoch 0/1] iter 1120/17091  loss 0.7307  avg_loss 0.8459  it/s 0.15  t_fwd 3.154s  t_bwd 3.362s  t_data 0.030s
+[epoch 0/1] iter 1140/17091  loss 0.7481  avg_loss 0.8447  it/s 0.15  t_fwd 3.154s  t_bwd 3.362s  t_data 0.030s
+[epoch 0/1] iter 1160/17091  loss 0.7266  avg_loss 0.8435  it/s 0.15  t_fwd 3.154s  t_bwd 3.361s  t_data 0.030s
+[epoch 0/1] iter 1180/17091  loss 0.7247  avg_loss 0.8423  it/s 0.15  t_fwd 3.154s  t_bwd 3.361s  t_data 0.029s
+[epoch 0/1] iter 1200/17091  loss 0.7738  avg_loss 0.8407  it/s 0.15  t_fwd 3.154s  t_bwd 3.361s  t_data 0.029s
+[epoch 0/1] iter 1220/17091  loss 0.7039  avg_loss 0.8395  it/s 0.15  t_fwd 3.154s  t_bwd 3.361s  t_data 0.029s
+[epoch 0/1] iter 1240/17091  loss 0.7529  avg_loss 0.8386  it/s 0.15  t_fwd 3.154s  t_bwd 3.360s  t_data 0.029s
+[epoch 0/1] iter 1260/17091  loss 0.7859  avg_loss 0.8375  it/s 0.15  t_fwd 3.155s  t_bwd 3.360s  t_data 0.029s
+[epoch 0/1] iter 1280/17091  loss 0.8061  avg_loss 0.8363  it/s 0.15  t_fwd 3.155s  t_bwd 3.360s  t_data 0.028s
+[epoch 0/1] iter 1300/17091  loss 0.8349  avg_loss 0.8351  it/s 0.15  t_fwd 3.154s  t_bwd 3.359s  t_data 0.028s
+[epoch 0/1] iter 1320/17091  loss 0.5818  avg_loss 0.8338  it/s 0.15  t_fwd 3.154s  t_bwd 3.359s  t_data 0.028s
+[epoch 0/1] iter 1340/17091  loss 0.8243  avg_loss 0.8328  it/s 0.15  t_fwd 3.154s  t_bwd 3.359s  t_data 0.028s
+[epoch 0/1] iter 1360/17091  loss 0.7847  avg_loss 0.8321  it/s 0.15  t_fwd 3.161s  t_bwd 3.364s  t_data 0.028s
+[epoch 0/1] iter 1380/17091  loss 0.7205  avg_loss 0.8309  it/s 0.15  t_fwd 3.186s  t_bwd 3.378s  t_data 0.028s
+[epoch 0/1] iter 1400/17091  loss 0.7588  avg_loss 0.8299  it/s 0.15  t_fwd 3.185s  t_bwd 3.378s  t_data 0.027s
+[epoch 0/1] iter 1420/17091  loss 0.8370  avg_loss 0.8288  it/s 0.15  t_fwd 3.185s  t_bwd 3.377s  t_data 0.027s
+[epoch 0/1] iter 1440/17091  loss 0.7879  avg_loss 0.8279  it/s 0.15  t_fwd 3.184s  t_bwd 3.376s  t_data 0.027s
+[epoch 0/1] iter 1460/17091  loss 0.7759  avg_loss 0.8272  it/s 0.15  t_fwd 3.183s  t_bwd 3.376s  t_data 0.027s
+[epoch 0/1] iter 1480/17091  loss 0.6796  avg_loss 0.8265  it/s 0.15  t_fwd 3.183s  t_bwd 3.376s  t_data 0.027s
+[epoch 0/1] iter 1500/17091  loss 0.7887  avg_loss 0.8258  it/s 0.15  t_fwd 3.183s  t_bwd 3.376s  t_data 0.027s
+[epoch 0/1] iter 1520/17091  loss 0.7472  avg_loss 0.8250  it/s 0.15  t_fwd 3.183s  t_bwd 3.376s  t_data 0.027s
+[epoch 0/1] iter 1540/17091  loss 0.6985  avg_loss 0.8243  it/s 0.15  t_fwd 3.181s  t_bwd 3.375s  t_data 0.026s
+[epoch 0/1] iter 1560/17091  loss 0.8250  avg_loss 0.8237  it/s 0.15  t_fwd 3.180s  t_bwd 3.374s  t_data 0.026s
+[epoch 0/1] iter 1580/17091  loss 0.8645  avg_loss 0.8230  it/s 0.15  t_fwd 3.179s  t_bwd 3.372s  t_data 0.026s
+[epoch 0/1] iter 1600/17091  loss 0.7967  avg_loss 0.8221  it/s 0.15  t_fwd 3.177s  t_bwd 3.371s  t_data 0.026s
+[epoch 0/1] iter 1620/17091  loss 0.8237  avg_loss 0.8213  it/s 0.15  t_fwd 3.175s  t_bwd 3.370s  t_data 0.026s
+[epoch 0/1] iter 1640/17091  loss 0.7037  avg_loss 0.8204  it/s 0.15  t_fwd 3.174s  t_bwd 3.368s  t_data 0.026s
+[epoch 0/1] iter 1660/17091  loss 0.8788  avg_loss 0.8199  it/s 0.15  t_fwd 3.173s  t_bwd 3.368s  t_data 0.026s
+[epoch 0/1] iter 1680/17091  loss 0.7392  avg_loss 0.8195  it/s 0.15  t_fwd 3.172s  t_bwd 3.367s  t_data 0.026s
+[epoch 0/1] iter 1700/17091  loss 0.8322  avg_loss 0.8187  it/s 0.15  t_fwd 3.171s  t_bwd 3.366s  t_data 0.026s
+[epoch 0/1] iter 1720/17091  loss 0.8233  avg_loss 0.8182  it/s 0.15  t_fwd 3.170s  t_bwd 3.365s  t_data 0.025s
+[epoch 0/1] iter 1740/17091  loss 0.7866  avg_loss 0.8176  it/s 0.15  t_fwd 3.169s  t_bwd 3.364s  t_data 0.025s
+[epoch 0/1] iter 1760/17091  loss 0.6904  avg_loss 0.8170  it/s 0.15  t_fwd 3.168s  t_bwd 3.363s  t_data 0.025s
+[epoch 0/1] iter 1780/17091  loss 0.8605  avg_loss 0.8165  it/s 0.15  t_fwd 3.168s  t_bwd 3.363s  t_data 0.025s
+[epoch 0/1] iter 1800/17091  loss 0.7745  avg_loss 0.8158  it/s 0.15  t_fwd 3.167s  t_bwd 3.362s  t_data 0.025s
+[epoch 0/1] iter 1820/17091  loss 0.7512  avg_loss 0.8152  it/s 0.15  t_fwd 3.166s  t_bwd 3.361s  t_data 0.025s
+[epoch 0/1] iter 1840/17091  loss 0.7773  avg_loss 0.8147  it/s 0.15  t_fwd 3.166s  t_bwd 3.361s  t_data 0.025s
+[epoch 0/1] iter 1860/17091  loss 0.6463  avg_loss 0.8140  it/s 0.15  t_fwd 3.165s  t_bwd 3.360s  t_data 0.025s
+[epoch 0/1] iter 1880/17091  loss 0.7353  avg_loss 0.8136  it/s 0.15  t_fwd 3.164s  t_bwd 3.359s  t_data 0.025s
+[epoch 0/1] iter 1900/17091  loss 0.7675  avg_loss 0.8128  it/s 0.15  t_fwd 3.164s  t_bwd 3.358s  t_data 0.025s
+[epoch 0/1] iter 1920/17091  loss 0.7449  avg_loss 0.8125  it/s 0.15  t_fwd 3.163s  t_bwd 3.358s  t_data 0.025s
+[epoch 0/1] iter 1940/17091  loss 0.7113  avg_loss 0.8119  it/s 0.15  t_fwd 3.162s  t_bwd 3.358s  t_data 0.024s
+[epoch 0/1] iter 1960/17091  loss 0.7623  avg_loss 0.8113  it/s 0.15  t_fwd 3.162s  t_bwd 3.358s  t_data 0.024s
+[epoch 0/1] iter 1980/17091  loss 0.7331  avg_loss 0.8109  it/s 0.15  t_fwd 3.162s  t_bwd 3.358s  t_data 0.024s
+[epoch 0/1] iter 2000/17091  loss 0.7282  avg_loss 0.8104  it/s 0.15  t_fwd 3.161s  t_bwd 3.357s  t_data 0.024s
+[epoch 0/1] iter 2020/17091  loss 0.7217  avg_loss 0.8100  it/s 0.15  t_fwd 3.161s  t_bwd 3.357s  t_data 0.024s
+[epoch 0/1] iter 2040/17091  loss 0.7883  avg_loss 0.8096  it/s 0.15  t_fwd 3.160s  t_bwd 3.357s  t_data 0.024s
+[epoch 0/1] iter 2060/17091  loss 0.7842  avg_loss 0.8093  it/s 0.15  t_fwd 3.160s  t_bwd 3.357s  t_data 0.024s
+[epoch 0/1] iter 2080/17091  loss 0.7053  avg_loss 0.8089  it/s 0.15  t_fwd 3.159s  t_bwd 3.356s  t_data 0.024s
+[epoch 0/1] iter 2100/17091  loss 0.8224  avg_loss 0.8083  it/s 0.15  t_fwd 3.159s  t_bwd 3.356s  t_data 0.024s
+[epoch 0/1] iter 2120/17091  loss 0.7792  avg_loss 0.8077  it/s 0.15  t_fwd 3.158s  t_bwd 3.356s  t_data 0.024s
+[epoch 0/1] iter 2140/17091  loss 0.8005  avg_loss 0.8073  it/s 0.15  t_fwd 3.158s  t_bwd 3.355s  t_data 0.024s
+[epoch 0/1] iter 2160/17091  loss 0.7748  avg_loss 0.8067  it/s 0.15  t_fwd 3.157s  t_bwd 3.355s  t_data 0.024s
+[epoch 0/1] iter 2180/17091  loss 0.7015  avg_loss 0.8062  it/s 0.15  t_fwd 3.157s  t_bwd 3.355s  t_data 0.024s
+[epoch 0/1] iter 2200/17091  loss 0.7894  avg_loss 0.8058  it/s 0.15  t_fwd 3.156s  t_bwd 3.355s  t_data 0.024s
+[epoch 0/1] iter 2220/17091  loss 0.8156  avg_loss 0.8053  it/s 0.15  t_fwd 3.156s  t_bwd 3.354s  t_data 0.024s
+[epoch 0/1] iter 2240/17091  loss 0.7506  avg_loss 0.8048  it/s 0.15  t_fwd 3.155s  t_bwd 3.354s  t_data 0.023s
+[epoch 0/1] iter 2260/17091  loss 0.6717  avg_loss 0.8043  it/s 0.15  t_fwd 3.155s  t_bwd 3.354s  t_data 0.023s
+[epoch 0/1] iter 2280/17091  loss 0.7873  avg_loss 0.8038  it/s 0.15  t_fwd 3.155s  t_bwd 3.354s  t_data 0.023s
+[epoch 0/1] iter 2300/17091  loss 0.8198  avg_loss 0.8032  it/s 0.15  t_fwd 3.154s  t_bwd 3.353s  t_data 0.023s
+[epoch 0/1] iter 2320/17091  loss 0.7864  avg_loss 0.8028  it/s 0.15  t_fwd 3.154s  t_bwd 3.353s  t_data 0.023s
+[epoch 0/1] iter 2340/17091  loss 0.7635  avg_loss 0.8025  it/s 0.15  t_fwd 3.153s  t_bwd 3.353s  t_data 0.023s
+[epoch 0/1] iter 2360/17091  loss 0.7504  avg_loss 0.8020  it/s 0.15  t_fwd 3.153s  t_bwd 3.353s  t_data 0.023s
+[epoch 0/1] iter 2380/17091  loss 0.7333  avg_loss 0.8016  it/s 0.15  t_fwd 3.152s  t_bwd 3.353s  t_data 0.023s
+[epoch 0/1] iter 2400/17091  loss 0.7287  avg_loss 0.8011  it/s 0.15  t_fwd 3.152s  t_bwd 3.352s  t_data 0.023s
+[epoch 0/1] iter 2420/17091  loss 0.7365  avg_loss 0.8007  it/s 0.15  t_fwd 3.152s  t_bwd 3.352s  t_data 0.023s
+[epoch 0/1] iter 2440/17091  loss 0.7412  avg_loss 0.8001  it/s 0.15  t_fwd 3.151s  t_bwd 3.352s  t_data 0.023s
+[epoch 0/1] iter 2460/17091  loss 0.7969  avg_loss 0.7997  it/s 0.15  t_fwd 3.150s  t_bwd 3.352s  t_data 0.023s
+[epoch 0/1] iter 2480/17091  loss 0.7993  avg_loss 0.7994  it/s 0.15  t_fwd 3.150s  t_bwd 3.351s  t_data 0.023s
+[epoch 0/1] iter 2500/17091  loss 0.7824  avg_loss 0.7991  it/s 0.15  t_fwd 3.149s  t_bwd 3.351s  t_data 0.023s
+[epoch 0/1] iter 2520/17091  loss 0.7044  avg_loss 0.7986  it/s 0.15  t_fwd 3.149s  t_bwd 3.351s  t_data 0.023s
+[epoch 0/1] iter 2540/17091  loss 0.7548  avg_loss 0.7984  it/s 0.15  t_fwd 3.149s  t_bwd 3.351s  t_data 0.023s
+[epoch 0/1] iter 2560/17091  loss 0.7188  avg_loss 0.7980  it/s 0.15  t_fwd 3.148s  t_bwd 3.351s  t_data 0.023s
+[epoch 0/1] iter 2580/17091  loss 0.7145  avg_loss 0.7975  it/s 0.15  t_fwd 3.148s  t_bwd 3.350s  t_data 0.023s
+[epoch 0/1] iter 2600/17091  loss 0.7504  avg_loss 0.7971  it/s 0.15  t_fwd 3.147s  t_bwd 3.350s  t_data 0.023s
+[epoch 0/1] iter 2620/17091  loss 0.7382  avg_loss 0.7969  it/s 0.15  t_fwd 3.147s  t_bwd 3.350s  t_data 0.023s
+[epoch 0/1] iter 2640/17091  loss 0.6757  avg_loss 0.7964  it/s 0.15  t_fwd 3.146s  t_bwd 3.350s  t_data 0.023s
+[epoch 0/1] iter 2660/17091  loss 0.7382  avg_loss 0.7962  it/s 0.15  t_fwd 3.146s  t_bwd 3.349s  t_data 0.022s
+[epoch 0/1] iter 2680/17091  loss 0.7673  avg_loss 0.7958  it/s 0.15  t_fwd 3.146s  t_bwd 3.349s  t_data 0.022s
+[epoch 0/1] iter 2700/17091  loss 0.7650  avg_loss 0.7955  it/s 0.15  t_fwd 3.145s  t_bwd 3.349s  t_data 0.022s
+[epoch 0/1] iter 2720/17091  loss 0.7869  avg_loss 0.7951  it/s 0.15  t_fwd 3.145s  t_bwd 3.348s  t_data 0.022s
+[epoch 0/1] iter 2740/17091  loss 0.7582  avg_loss 0.7946  it/s 0.15  t_fwd 3.145s  t_bwd 3.348s  t_data 0.022s
+[epoch 0/1] iter 2760/17091  loss 0.7229  avg_loss 0.7944  it/s 0.15  t_fwd 3.144s  t_bwd 3.348s  t_data 0.022s
+[epoch 0/1] iter 2780/17091  loss 0.7497  avg_loss 0.7941  it/s 0.15  t_fwd 3.144s  t_bwd 3.348s  t_data 0.022s
+[epoch 0/1] iter 2800/17091  loss 0.7763  avg_loss 0.7938  it/s 0.15  t_fwd 3.143s  t_bwd 3.347s  t_data 0.022s
+[epoch 0/1] iter 2820/17091  loss 0.7925  avg_loss 0.7935  it/s 0.15  t_fwd 3.143s  t_bwd 3.347s  t_data 0.022s
+[epoch 0/1] iter 2840/17091  loss 0.7404  avg_loss 0.7932  it/s 0.15  t_fwd 3.142s  t_bwd 3.347s  t_data 0.022s
+[epoch 0/1] iter 2860/17091  loss 0.7180  avg_loss 0.7927  it/s 0.15  t_fwd 3.142s  t_bwd 3.347s  t_data 0.022s
+[epoch 0/1] iter 2880/17091  loss 0.7970  avg_loss 0.7924  it/s 0.15  t_fwd 3.141s  t_bwd 3.346s  t_data 0.022s
+[epoch 0/1] iter 2900/17091  loss 0.7860  avg_loss 0.7921  it/s 0.15  t_fwd 3.141s  t_bwd 3.346s  t_data 0.022s
+[epoch 0/1] iter 2920/17091  loss 0.7983  avg_loss 0.7920  it/s 0.15  t_fwd 3.140s  t_bwd 3.346s  t_data 0.022s
+[epoch 0/1] iter 2940/17091  loss 0.8046  avg_loss 0.7918  it/s 0.15  t_fwd 3.140s  t_bwd 3.345s  t_data 0.022s
+[epoch 0/1] iter 2960/17091  loss 0.7057  avg_loss 0.7914  it/s 0.15  t_fwd 3.140s  t_bwd 3.345s  t_data 0.022s
+[epoch 0/1] iter 2980/17091  loss 0.7775  avg_loss 0.7912  it/s 0.15  t_fwd 3.139s  t_bwd 3.345s  t_data 0.022s
+[epoch 0/1] iter 3000/17091  loss 0.7452  avg_loss 0.7909  it/s 0.15  t_fwd 3.139s  t_bwd 3.345s  t_data 0.022s
+[epoch 0/1] iter 3020/17091  loss 0.7402  avg_loss 0.7906  it/s 0.15  t_fwd 3.138s  t_bwd 3.344s  t_data 0.022s
+[epoch 0/1] iter 3040/17091  loss 0.7616  avg_loss 0.7902  it/s 0.15  t_fwd 3.138s  t_bwd 3.344s  t_data 0.022s
+[epoch 0/1] iter 3060/17091  loss 0.7921  avg_loss 0.7901  it/s 0.15  t_fwd 3.138s  t_bwd 3.344s  t_data 0.022s
+[epoch 0/1] iter 3080/17091  loss 0.7757  avg_loss 0.7898  it/s 0.15  t_fwd 3.137s  t_bwd 3.344s  t_data 0.022s
+[epoch 0/1] iter 3100/17091  loss 0.7780  avg_loss 0.7897  it/s 0.15  t_fwd 3.137s  t_bwd 3.344s  t_data 0.022s
+[epoch 0/1] iter 3120/17091  loss 0.7529  avg_loss 0.7894  it/s 0.15  t_fwd 3.136s  t_bwd 3.343s  t_data 0.022s
+[epoch 0/1] iter 3140/17091  loss 0.7181  avg_loss 0.7891  it/s 0.15  t_fwd 3.136s  t_bwd 3.343s  t_data 0.022s
+[epoch 0/1] iter 3160/17091  loss 0.7470  avg_loss 0.7889  it/s 0.15  t_fwd 3.136s  t_bwd 3.343s  t_data 0.022s
+[epoch 0/1] iter 3180/17091  loss 0.8004  avg_loss 0.7888  it/s 0.15  t_fwd 3.135s  t_bwd 3.343s  t_data 0.022s
+[epoch 0/1] iter 3200/17091  loss 0.7582  avg_loss 0.7886  it/s 0.15  t_fwd 3.135s  t_bwd 3.342s  t_data 0.022s
+[epoch 0/1] iter 3220/17091  loss 0.7492  avg_loss 0.7883  it/s 0.15  t_fwd 3.135s  t_bwd 3.342s  t_data 0.022s
+[epoch 0/1] iter 3240/17091  loss 0.7734  avg_loss 0.7882  it/s 0.15  t_fwd 3.134s  t_bwd 3.342s  t_data 0.022s
+[epoch 0/1] iter 3260/17091  loss 0.7281  avg_loss 0.7878  it/s 0.15  t_fwd 3.134s  t_bwd 3.342s  t_data 0.021s
+[epoch 0/1] iter 3280/17091  loss 0.7567  avg_loss 0.7876  it/s 0.15  t_fwd 3.134s  t_bwd 3.341s  t_data 0.021s
+[epoch 0/1] iter 3300/17091  loss 0.6799  avg_loss 0.7873  it/s 0.15  t_fwd 3.133s  t_bwd 3.341s  t_data 0.021s
+[epoch 0/1] iter 3320/17091  loss 0.7156  avg_loss 0.7871  it/s 0.15  t_fwd 3.133s  t_bwd 3.341s  t_data 0.021s
+[epoch 0/1] iter 3340/17091  loss 0.7945  avg_loss 0.7868  it/s 0.15  t_fwd 3.132s  t_bwd 3.341s  t_data 0.021s
+[epoch 0/1] iter 3360/17091  loss 0.7957  avg_loss 0.7866  it/s 0.15  t_fwd 3.132s  t_bwd 3.340s  t_data 0.021s
+[epoch 0/1] iter 3380/17091  loss 0.7485  avg_loss 0.7864  it/s 0.15  t_fwd 3.132s  t_bwd 3.340s  t_data 0.021s
+[epoch 0/1] iter 3400/17091  loss 0.8022  avg_loss 0.7862  it/s 0.15  t_fwd 3.131s  t_bwd 3.340s  t_data 0.021s
+[epoch 0/1] iter 3420/17091  loss 0.7648  avg_loss 0.7860  it/s 0.15  t_fwd 3.131s  t_bwd 3.340s  t_data 0.021s
+[epoch 0/1] iter 3440/17091  loss 0.7306  avg_loss 0.7858  it/s 0.15  t_fwd 3.131s  t_bwd 3.340s  t_data 0.021s
+[epoch 0/1] iter 3460/17091  loss 0.7375  avg_loss 0.7855  it/s 0.15  t_fwd 3.130s  t_bwd 3.340s  t_data 0.021s
+[epoch 0/1] iter 3480/17091  loss 0.7602  avg_loss 0.7852  it/s 0.15  t_fwd 3.130s  t_bwd 3.339s  t_data 0.021s
+[epoch 0/1] iter 3500/17091  loss 0.7440  avg_loss 0.7850  it/s 0.15  t_fwd 3.129s  t_bwd 3.339s  t_data 0.021s
+[epoch 0/1] iter 3520/17091  loss 0.7025  avg_loss 0.7847  it/s 0.15  t_fwd 3.129s  t_bwd 3.339s  t_data 0.021s
+[epoch 0/1] iter 3540/17091  loss 0.6793  avg_loss 0.7844  it/s 0.15  t_fwd 3.129s  t_bwd 3.339s  t_data 0.021s
+[epoch 0/1] iter 3560/17091  loss 0.7113  avg_loss 0.7841  it/s 0.15  t_fwd 3.128s  t_bwd 3.339s  t_data 0.021s
+[epoch 0/1] iter 3580/17091  loss 0.7265  avg_loss 0.7838  it/s 0.15  t_fwd 3.128s  t_bwd 3.339s  t_data 0.021s
+[epoch 0/1] iter 3600/17091  loss 0.7877  avg_loss 0.7836  it/s 0.15  t_fwd 3.128s  t_bwd 3.338s  t_data 0.021s
+[epoch 0/1] iter 3620/17091  loss 0.7172  avg_loss 0.7835  it/s 0.15  t_fwd 3.128s  t_bwd 3.339s  t_data 0.021s
+[epoch 0/1] iter 3640/17091  loss 0.7438  avg_loss 0.7832  it/s 0.15  t_fwd 3.127s  t_bwd 3.338s  t_data 0.021s
+[epoch 0/1] iter 3660/17091  loss 0.6959  avg_loss 0.7830  it/s 0.15  t_fwd 3.127s  t_bwd 3.338s  t_data 0.021s
+[epoch 0/1] iter 3680/17091  loss 0.6759  avg_loss 0.7829  it/s 0.15  t_fwd 3.127s  t_bwd 3.338s  t_data 0.021s
+[epoch 0/1] iter 3700/17091  loss 0.6928  avg_loss 0.7827  it/s 0.15  t_fwd 3.126s  t_bwd 3.338s  t_data 0.021s
+[epoch 0/1] iter 3720/17091  loss 0.8479  avg_loss 0.7825  it/s 0.15  t_fwd 3.126s  t_bwd 3.338s  t_data 0.021s
+[epoch 0/1] iter 3740/17091  loss 0.7722  avg_loss 0.7824  it/s 0.15  t_fwd 3.126s  t_bwd 3.338s  t_data 0.021s
+[epoch 0/1] iter 3760/17091  loss 0.7863  avg_loss 0.7821  it/s 0.15  t_fwd 3.125s  t_bwd 3.338s  t_data 0.021s
+[epoch 0/1] iter 3780/17091  loss 0.7194  avg_loss 0.7820  it/s 0.15  t_fwd 3.125s  t_bwd 3.337s  t_data 0.021s
+[epoch 0/1] iter 3800/17091  loss 0.7892  avg_loss 0.7818  it/s 0.15  t_fwd 3.125s  t_bwd 3.337s  t_data 0.021s
+[epoch 0/1] iter 3820/17091  loss 0.7896  avg_loss 0.7816  it/s 0.15  t_fwd 3.125s  t_bwd 3.337s  t_data 0.021s
+[epoch 0/1] iter 3840/17091  loss 0.7232  avg_loss 0.7813  it/s 0.15  t_fwd 3.125s  t_bwd 3.337s  t_data 0.021s
+[epoch 0/1] iter 3860/17091  loss 0.7559  avg_loss 0.7811  it/s 0.15  t_fwd 3.125s  t_bwd 3.337s  t_data 0.021s
+[epoch 0/1] iter 3880/17091  loss 0.7402  avg_loss 0.7809  it/s 0.15  t_fwd 3.124s  t_bwd 3.337s  t_data 0.021s
+[epoch 0/1] iter 3900/17091  loss 0.6851  avg_loss 0.7807  it/s 0.15  t_fwd 3.124s  t_bwd 3.337s  t_data 0.021s
+[epoch 0/1] iter 3920/17091  loss 0.7242  avg_loss 0.7807  it/s 0.15  t_fwd 3.124s  t_bwd 3.336s  t_data 0.021s
+[epoch 0/1] iter 3940/17091  loss 0.7579  avg_loss 0.7805  it/s 0.15  t_fwd 3.124s  t_bwd 3.336s  t_data 0.021s
+[epoch 0/1] iter 3960/17091  loss 0.7816  avg_loss 0.7804  it/s 0.15  t_fwd 3.123s  t_bwd 3.336s  t_data 0.021s
+[epoch 0/1] iter 3980/17091  loss 0.6962  avg_loss 0.7802  it/s 0.15  t_fwd 3.123s  t_bwd 3.336s  t_data 0.021s
+[epoch 0/1] iter 4000/17091  loss 0.8005  avg_loss 0.7800  it/s 0.15  t_fwd 3.123s  t_bwd 3.336s  t_data 0.021s
+[epoch 0/1] iter 4020/17091  loss 0.7725  avg_loss 0.7799  it/s 0.15  t_fwd 3.122s  t_bwd 3.336s  t_data 0.021s
+[epoch 0/1] iter 4040/17091  loss 0.7450  avg_loss 0.7796  it/s 0.15  t_fwd 3.122s  t_bwd 3.336s  t_data 0.021s
+[epoch 0/1] iter 4060/17091  loss 0.7854  avg_loss 0.7794  it/s 0.15  t_fwd 3.122s  t_bwd 3.336s  t_data 0.021s
+[epoch 0/1] iter 4080/17091  loss 0.7104  avg_loss 0.7792  it/s 0.15  t_fwd 3.122s  t_bwd 3.336s  t_data 0.021s
+[epoch 0/1] iter 4100/17091  loss 0.7013  avg_loss 0.7790  it/s 0.15  t_fwd 3.122s  t_bwd 3.336s  t_data 0.021s
+[epoch 0/1] iter 4120/17091  loss 0.6967  avg_loss 0.7789  it/s 0.15  t_fwd 3.121s  t_bwd 3.335s  t_data 0.021s
+[epoch 0/1] iter 4140/17091  loss 0.7568  avg_loss 0.7787  it/s 0.15  t_fwd 3.121s  t_bwd 3.335s  t_data 0.021s
+[epoch 0/1] iter 4160/17091  loss 0.7036  avg_loss 0.7786  it/s 0.15  t_fwd 3.121s  t_bwd 3.335s  t_data 0.021s
+[epoch 0/1] iter 4180/17091  loss 0.7144  avg_loss 0.7785  it/s 0.15  t_fwd 3.121s  t_bwd 3.335s  t_data 0.021s
+[epoch 0/1] iter 4200/17091  loss 0.7807  avg_loss 0.7784  it/s 0.15  t_fwd 3.120s  t_bwd 3.335s  t_data 0.020s
+[epoch 0/1] iter 4220/17091  loss 0.7378  avg_loss 0.7783  it/s 0.15  t_fwd 3.120s  t_bwd 3.335s  t_data 0.020s
+[epoch 0/1] iter 4240/17091  loss 0.7500  avg_loss 0.7781  it/s 0.15  t_fwd 3.120s  t_bwd 3.335s  t_data 0.020s
+[epoch 0/1] iter 4260/17091  loss 0.7719  avg_loss 0.7780  it/s 0.15  t_fwd 3.120s  t_bwd 3.335s  t_data 0.020s
+[epoch 0/1] iter 4280/17091  loss 0.7758  avg_loss 0.7779  it/s 0.15  t_fwd 3.120s  t_bwd 3.335s  t_data 0.020s
+[epoch 0/1] iter 4300/17091  loss 0.6588  avg_loss 0.7777  it/s 0.15  t_fwd 3.119s  t_bwd 3.334s  t_data 0.020s
+[epoch 0/1] iter 4320/17091  loss 0.7812  avg_loss 0.7776  it/s 0.15  t_fwd 3.119s  t_bwd 3.334s  t_data 0.020s
+[epoch 0/1] iter 4340/17091  loss 0.7376  avg_loss 0.7775  it/s 0.15  t_fwd 3.119s  t_bwd 3.334s  t_data 0.020s
+[epoch 0/1] iter 4360/17091  loss 0.7377  avg_loss 0.7774  it/s 0.15  t_fwd 3.118s  t_bwd 3.334s  t_data 0.020s
+[epoch 0/1] iter 4380/17091  loss 0.7327  avg_loss 0.7773  it/s 0.15  t_fwd 3.118s  t_bwd 3.334s  t_data 0.020s
+[epoch 0/1] iter 4400/17091  loss 0.8129  avg_loss 0.7772  it/s 0.15  t_fwd 3.118s  t_bwd 3.334s  t_data 0.020s
+[epoch 0/1] iter 4420/17091  loss 0.7353  avg_loss 0.7771  it/s 0.15  t_fwd 3.118s  t_bwd 3.334s  t_data 0.020s
+[epoch 0/1] iter 4440/17091  loss 0.7593  avg_loss 0.7769  it/s 0.15  t_fwd 3.118s  t_bwd 3.334s  t_data 0.020s
+[epoch 0/1] iter 4460/17091  loss 0.7031  avg_loss 0.7768  it/s 0.15  t_fwd 3.117s  t_bwd 3.333s  t_data 0.020s
+[epoch 0/1] iter 4480/17091  loss 0.6862  avg_loss 0.7766  it/s 0.15  t_fwd 3.117s  t_bwd 3.333s  t_data 0.020s
+[epoch 0/1] iter 4500/17091  loss 0.6982  avg_loss 0.7764  it/s 0.15  t_fwd 3.117s  t_bwd 3.333s  t_data 0.020s
+[epoch 0/1] iter 4520/17091  loss 0.7070  avg_loss 0.7762  it/s 0.15  t_fwd 3.117s  t_bwd 3.333s  t_data 0.020s
+[epoch 0/1] iter 4540/17091  loss 0.7157  avg_loss 0.7760  it/s 0.15  t_fwd 3.117s  t_bwd 3.333s  t_data 0.020s
+[epoch 0/1] iter 4560/17091  loss 0.7635  avg_loss 0.7758  it/s 0.15  t_fwd 3.117s  t_bwd 3.333s  t_data 0.020s
+[epoch 0/1] iter 4580/17091  loss 0.7559  avg_loss 0.7757  it/s 0.15  t_fwd 3.117s  t_bwd 3.333s  t_data 0.020s
+[epoch 0/1] iter 4600/17091  loss 0.7587  avg_loss 0.7755  it/s 0.15  t_fwd 3.116s  t_bwd 3.333s  t_data 0.020s
+[epoch 0/1] iter 4620/17091  loss 0.6494  avg_loss 0.7753  it/s 0.15  t_fwd 3.116s  t_bwd 3.333s  t_data 0.020s
+[epoch 0/1] iter 4640/17091  loss 0.7640  avg_loss 0.7750  it/s 0.15  t_fwd 3.116s  t_bwd 3.332s  t_data 0.020s
+[epoch 0/1] iter 4660/17091  loss 0.8176  avg_loss 0.7749  it/s 0.15  t_fwd 3.116s  t_bwd 3.332s  t_data 0.020s
+[epoch 0/1] iter 4680/17091  loss 0.7386  avg_loss 0.7747  it/s 0.15  t_fwd 3.116s  t_bwd 3.332s  t_data 0.020s
+[epoch 0/1] iter 4700/17091  loss 0.7543  avg_loss 0.7746  it/s 0.15  t_fwd 3.115s  t_bwd 3.332s  t_data 0.020s
+[epoch 0/1] iter 4720/17091  loss 0.8305  avg_loss 0.7744  it/s 0.15  t_fwd 3.115s  t_bwd 3.332s  t_data 0.020s
+[epoch 0/1] iter 4740/17091  loss 0.7850  avg_loss 0.7743  it/s 0.15  t_fwd 3.115s  t_bwd 3.332s  t_data 0.020s
+[epoch 0/1] iter 4760/17091  loss 0.7542  avg_loss 0.7741  it/s 0.15  t_fwd 3.115s  t_bwd 3.332s  t_data 0.020s
+[epoch 0/1] iter 4780/17091  loss 0.6569  avg_loss 0.7740  it/s 0.15  t_fwd 3.114s  t_bwd 3.331s  t_data 0.020s
+[epoch 0/1] iter 4800/17091  loss 0.7631  avg_loss 0.7738  it/s 0.15  t_fwd 3.114s  t_bwd 3.331s  t_data 0.020s
+[epoch 0/1] iter 4820/17091  loss 0.7527  avg_loss 0.7737  it/s 0.15  t_fwd 3.114s  t_bwd 3.331s  t_data 0.020s
+[epoch 0/1] iter 4840/17091  loss 0.8239  avg_loss 0.7736  it/s 0.15  t_fwd 3.114s  t_bwd 3.331s  t_data 0.020s
+[epoch 0/1] iter 4860/17091  loss 0.8090  avg_loss 0.7735  it/s 0.15  t_fwd 3.113s  t_bwd 3.331s  t_data 0.020s
+[epoch 0/1] iter 4880/17091  loss 0.6677  avg_loss 0.7734  it/s 0.15  t_fwd 3.113s  t_bwd 3.331s  t_data 0.020s
+[epoch 0/1] iter 4900/17091  loss 0.6431  avg_loss 0.7732  it/s 0.15  t_fwd 3.113s  t_bwd 3.331s  t_data 0.020s
+[epoch 0/1] iter 4920/17091  loss 0.7558  avg_loss 0.7731  it/s 0.15  t_fwd 3.113s  t_bwd 3.331s  t_data 0.020s
+[epoch 0/1] iter 4940/17091  loss 0.7114  avg_loss 0.7729  it/s 0.15  t_fwd 3.113s  t_bwd 3.331s  t_data 0.020s
+[epoch 0/1] iter 4960/17091  loss 0.7089  avg_loss 0.7728  it/s 0.15  t_fwd 3.113s  t_bwd 3.331s  t_data 0.020s
+[epoch 0/1] iter 4980/17091  loss 0.8064  avg_loss 0.7727  it/s 0.15  t_fwd 3.113s  t_bwd 3.331s  t_data 0.020s
+[epoch 0/1] iter 5000/17091  loss 0.7742  avg_loss 0.7726  it/s 0.15  t_fwd 3.112s  t_bwd 3.331s  t_data 0.020s
+[epoch 0/1] iter 5020/17091  loss 0.8324  avg_loss 0.7725  it/s 0.15  t_fwd 3.112s  t_bwd 3.330s  t_data 0.020s
+[epoch 0/1] iter 5040/17091  loss 0.7455  avg_loss 0.7724  it/s 0.15  t_fwd 3.112s  t_bwd 3.330s  t_data 0.020s
+[epoch 0/1] iter 5060/17091  loss 0.7331  avg_loss 0.7723  it/s 0.15  t_fwd 3.112s  t_bwd 3.330s  t_data 0.020s
+[epoch 0/1] iter 5080/17091  loss 0.7228  avg_loss 0.7721  it/s 0.15  t_fwd 3.112s  t_bwd 3.330s  t_data 0.020s
+[epoch 0/1] iter 5100/17091  loss 0.6980  avg_loss 0.7720  it/s 0.15  t_fwd 3.111s  t_bwd 3.330s  t_data 0.020s
+[epoch 0/1] iter 5120/17091  loss 0.7617  avg_loss 0.7719  it/s 0.15  t_fwd 3.111s  t_bwd 3.330s  t_data 0.020s
+[epoch 0/1] iter 5140/17091  loss 0.7826  avg_loss 0.7719  it/s 0.15  t_fwd 3.111s  t_bwd 3.330s  t_data 0.020s
+[epoch 0/1] iter 5160/17091  loss 0.7142  avg_loss 0.7717  it/s 0.15  t_fwd 3.111s  t_bwd 3.330s  t_data 0.020s
+[epoch 0/1] iter 5180/17091  loss 0.7952  avg_loss 0.7717  it/s 0.15  t_fwd 3.111s  t_bwd 3.330s  t_data 0.020s
+[epoch 0/1] iter 5200/17091  loss 0.7195  avg_loss 0.7716  it/s 0.15  t_fwd 3.111s  t_bwd 3.330s  t_data 0.020s
+[epoch 0/1] iter 5220/17091  loss 0.6761  avg_loss 0.7715  it/s 0.15  t_fwd 3.111s  t_bwd 3.330s  t_data 0.020s
+[epoch 0/1] iter 5240/17091  loss 0.7541  avg_loss 0.7713  it/s 0.15  t_fwd 3.110s  t_bwd 3.330s  t_data 0.020s
+[epoch 0/1] iter 5260/17091  loss 0.8123  avg_loss 0.7712  it/s 0.15  t_fwd 3.110s  t_bwd 3.329s  t_data 0.020s
+[epoch 0/1] iter 5280/17091  loss 0.6368  avg_loss 0.7711  it/s 0.15  t_fwd 3.110s  t_bwd 3.329s  t_data 0.020s
+[epoch 0/1] iter 5300/17091  loss 0.7834  avg_loss 0.7710  it/s 0.15  t_fwd 3.110s  t_bwd 3.329s  t_data 0.020s
+[epoch 0/1] iter 5320/17091  loss 0.7233  avg_loss 0.7709  it/s 0.15  t_fwd 3.110s  t_bwd 3.329s  t_data 0.020s
+[epoch 0/1] iter 5340/17091  loss 0.7054  avg_loss 0.7708  it/s 0.15  t_fwd 3.110s  t_bwd 3.329s  t_data 0.020s
+[epoch 0/1] iter 5360/17091  loss 0.7389  avg_loss 0.7707  it/s 0.15  t_fwd 3.109s  t_bwd 3.329s  t_data 0.020s
+[epoch 0/1] iter 5380/17091  loss 0.8178  avg_loss 0.7706  it/s 0.15  t_fwd 3.109s  t_bwd 3.329s  t_data 0.020s
+[epoch 0/1] iter 5400/17091  loss 0.7622  avg_loss 0.7704  it/s 0.15  t_fwd 3.109s  t_bwd 3.329s  t_data 0.020s
+[epoch 0/1] iter 5420/17091  loss 0.7296  avg_loss 0.7703  it/s 0.15  t_fwd 3.109s  t_bwd 3.328s  t_data 0.020s
+[epoch 0/1] iter 5440/17091  loss 0.7279  avg_loss 0.7702  it/s 0.15  t_fwd 3.109s  t_bwd 3.328s  t_data 0.020s
+[epoch 0/1] iter 5460/17091  loss 0.8011  avg_loss 0.7701  it/s 0.15  t_fwd 3.109s  t_bwd 3.328s  t_data 0.020s
+[epoch 0/1] iter 5480/17091  loss 0.8399  avg_loss 0.7701  it/s 0.15  t_fwd 3.108s  t_bwd 3.328s  t_data 0.020s
+[epoch 0/1] iter 5500/17091  loss 0.7941  avg_loss 0.7700  it/s 0.15  t_fwd 3.108s  t_bwd 3.328s  t_data 0.020s
+[epoch 0/1] iter 5520/17091  loss 0.7413  avg_loss 0.7698  it/s 0.15  t_fwd 3.108s  t_bwd 3.328s  t_data 0.020s
+[epoch 0/1] iter 5540/17091  loss 0.7748  avg_loss 0.7697  it/s 0.15  t_fwd 3.108s  t_bwd 3.328s  t_data 0.020s
+[epoch 0/1] iter 5560/17091  loss 0.7185  avg_loss 0.7697  it/s 0.15  t_fwd 3.108s  t_bwd 3.328s  t_data 0.020s
+[epoch 0/1] iter 5580/17091  loss 0.7096  avg_loss 0.7696  it/s 0.15  t_fwd 3.108s  t_bwd 3.327s  t_data 0.020s
+[epoch 0/1] iter 5600/17091  loss 0.6656  avg_loss 0.7695  it/s 0.15  t_fwd 3.107s  t_bwd 3.327s  t_data 0.020s
+[epoch 0/1] iter 5620/17091  loss 0.7932  avg_loss 0.7693  it/s 0.15  t_fwd 3.107s  t_bwd 3.327s  t_data 0.020s
+[epoch 0/1] iter 5640/17091  loss 0.7528  avg_loss 0.7693  it/s 0.15  t_fwd 3.107s  t_bwd 3.327s  t_data 0.020s
+[epoch 0/1] iter 5660/17091  loss 0.7551  avg_loss 0.7691  it/s 0.15  t_fwd 3.107s  t_bwd 3.327s  t_data 0.020s
+[epoch 0/1] iter 5680/17091  loss 0.8307  avg_loss 0.7690  it/s 0.15  t_fwd 3.107s  t_bwd 3.327s  t_data 0.020s
+[epoch 0/1] iter 5700/17091  loss 0.7934  avg_loss 0.7690  it/s 0.15  t_fwd 3.107s  t_bwd 3.328s  t_data 0.020s
+[epoch 0/1] iter 5720/17091  loss 0.7530  avg_loss 0.7688  it/s 0.15  t_fwd 3.108s  t_bwd 3.328s  t_data 0.020s
+[epoch 0/1] iter 5740/17091  loss 0.7585  avg_loss 0.7688  it/s 0.15  t_fwd 3.110s  t_bwd 3.329s  t_data 0.020s
+[epoch 0/1] iter 5760/17091  loss 0.6938  avg_loss 0.7687  it/s 0.15  t_fwd 3.112s  t_bwd 3.330s  t_data 0.020s
+[epoch 0/1] iter 5780/17091  loss 0.7178  avg_loss 0.7685  it/s 0.15  t_fwd 3.114s  t_bwd 3.331s  t_data 0.020s
+[epoch 0/1] iter 5800/17091  loss 0.7462  avg_loss 0.7684  it/s 0.15  t_fwd 3.116s  t_bwd 3.333s  t_data 0.020s
+[epoch 0/1] iter 5820/17091  loss 0.7097  avg_loss 0.7683  it/s 0.15  t_fwd 3.118s  t_bwd 3.334s  t_data 0.020s
+[epoch 0/1] iter 5840/17091  loss 0.7708  avg_loss 0.7682  it/s 0.15  t_fwd 3.120s  t_bwd 3.335s  t_data 0.020s
+[epoch 0/1] iter 5860/17091  loss 0.7438  avg_loss 0.7681  it/s 0.15  t_fwd 3.121s  t_bwd 3.336s  t_data 0.020s
+[epoch 0/1] iter 5880/17091  loss 0.7756  avg_loss 0.7680  it/s 0.15  t_fwd 3.122s  t_bwd 3.337s  t_data 0.020s
+[epoch 0/1] iter 5900/17091  loss 0.7599  avg_loss 0.7679  it/s 0.15  t_fwd 3.123s  t_bwd 3.338s  t_data 0.020s
+[epoch 0/1] iter 5920/17091  loss 0.7966  avg_loss 0.7678  it/s 0.15  t_fwd 3.125s  t_bwd 3.339s  t_data 0.020s
+[epoch 0/1] iter 5940/17091  loss 0.7575  avg_loss 0.7677  it/s 0.15  t_fwd 3.127s  t_bwd 3.341s  t_data 0.020s
+[epoch 0/1] iter 5960/17091  loss 0.7039  avg_loss 0.7676  it/s 0.15  t_fwd 3.129s  t_bwd 3.342s  t_data 0.020s
+[epoch 0/1] iter 5980/17091  loss 0.7038  avg_loss 0.7675  it/s 0.15  t_fwd 3.131s  t_bwd 3.345s  t_data 0.020s
+[epoch 0/1] iter 6000/17091  loss 0.7347  avg_loss 0.7674  it/s 0.15  t_fwd 3.132s  t_bwd 3.346s  t_data 0.020s
+[epoch 0/1] iter 6020/17091  loss 0.6917  avg_loss 0.7672  it/s 0.15  t_fwd 3.134s  t_bwd 3.347s  t_data 0.020s
+[epoch 0/1] iter 6040/17091  loss 0.7378  avg_loss 0.7672  it/s 0.15  t_fwd 3.135s  t_bwd 3.348s  t_data 0.020s
+[epoch 0/1] iter 6060/17091  loss 0.6909  avg_loss 0.7671  it/s 0.15  t_fwd 3.137s  t_bwd 3.349s  t_data 0.020s
+[epoch 0/1] iter 6080/17091  loss 0.7471  avg_loss 0.7670  it/s 0.15  t_fwd 3.138s  t_bwd 3.350s  t_data 0.020s
+[epoch 0/1] iter 6100/17091  loss 0.7203  avg_loss 0.7669  it/s 0.15  t_fwd 3.140s  t_bwd 3.351s  t_data 0.020s
+[epoch 0/1] iter 6120/17091  loss 0.8204  avg_loss 0.7668  it/s 0.15  t_fwd 3.141s  t_bwd 3.352s  t_data 0.020s
+[epoch 0/1] iter 6140/17091  loss 0.7350  avg_loss 0.7667  it/s 0.15  t_fwd 3.143s  t_bwd 3.353s  t_data 0.020s
+[epoch 0/1] iter 6160/17091  loss 0.7360  avg_loss 0.7666  it/s 0.15  t_fwd 3.144s  t_bwd 3.354s  t_data 0.020s
+[epoch 0/1] iter 6180/17091  loss 0.7380  avg_loss 0.7665  it/s 0.15  t_fwd 3.145s  t_bwd 3.355s  t_data 0.020s
+[epoch 0/1] iter 6200/17091  loss 0.7202  avg_loss 0.7664  it/s 0.15  t_fwd 3.146s  t_bwd 3.356s  t_data 0.020s
+[epoch 0/1] iter 6220/17091  loss 0.7595  avg_loss 0.7663  it/s 0.15  t_fwd 3.148s  t_bwd 3.357s  t_data 0.020s
+[epoch 0/1] iter 6240/17091  loss 0.8133  avg_loss 0.7663  it/s 0.15  t_fwd 3.149s  t_bwd 3.358s  t_data 0.020s
+[epoch 0/1] iter 6260/17091  loss 0.7332  avg_loss 0.7662  it/s 0.15  t_fwd 3.150s  t_bwd 3.358s  t_data 0.021s
+[epoch 0/1] iter 6280/17091  loss 0.7507  avg_loss 0.7661  it/s 0.15  t_fwd 3.151s  t_bwd 3.359s  t_data 0.021s
+Traceback (most recent call last):
+  File "/home/liwenbo/anaconda3/envs/vla0/lib/python3.10/runpy.py", line 196, in _run_module_as_main
+    return _run_code(code, main_globals, None,
+  File "/home/liwenbo/anaconda3/envs/vla0/lib/python3.10/runpy.py", line 86, in _run_code
+    exec(code, run_globals)
+  File "/home/liwenbo/projects/VLA/vla0_deploy/rv_train/train.py", line 840, in <module>
+    mp.spawn(
+  File "/home/liwenbo/anaconda3/envs/vla0/lib/python3.10/site-packages/torch/multiprocessing/spawn.py", line 364, in spawn
+    return start_processes(fn, args, nprocs, join, daemon, start_method="spawn")
+  File "/home/liwenbo/anaconda3/envs/vla0/lib/python3.10/site-packages/torch/multiprocessing/spawn.py", line 320, in start_processes
+    while not context.join():
+  File "/home/liwenbo/anaconda3/envs/vla0/lib/python3.10/site-packages/torch/multiprocessing/spawn.py", line 201, in join
+    raise ProcessExitedException(
+torch.multiprocessing.spawn.ProcessExitedException: process 0 terminated with signal SIGKILL
+/home/liwenbo/anaconda3/envs/vla0/lib/python3.10/multiprocessing/resource_tracker.py:224: UserWarning: resource_tracker: There appear to be 24 leaked semaphore objects to clean up at shutdown
+  warnings.warn('resource_tracker: There appear to be %d '

@@ -3,6 +3,7 @@
 # Licensed under the CC BY-NC 4.0 license [see LICENSE for details].
 
 try:
-    from .qwen.model import QwenActor  # noqa F401
+    # from .qwen.model import QwenActor  # noqa F401
+    from .qwen.model_qwen3 import QwenActor  # noqa F401
 except ImportError as e:
     print(f"Qwen not found: {e}")

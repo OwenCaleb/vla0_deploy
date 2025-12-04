@@ -1,6 +1,6 @@
 EXP:
   # 实验名字
-  EXP_ID: "vla0_qwen3b_fullft_bs8_lr5e-6_ep24"
+  EXP_ID: "vla0_qwen4b"
   MODEL: "qwen" 
   # 不用学习率 scheduler，训练全程固定 lr
   LR_SCHED: "none"
@@ -23,7 +23,7 @@ EXP_EXTRA:
 
 DATALOADER:
   # 每个 GPU / 进程的 batch 大小。8-》改为4 以减小显存占用
-  batch_size: 16
+  batch_size: 1
   # PyTorch DataLoader 的 worker 数。8-》4
   num_workers: 4
   ROBOVERSE:
